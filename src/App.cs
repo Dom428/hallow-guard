@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.3";
+        public const string Version = "1.4";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -55,17 +55,26 @@ namespace HallowGuard
             GC.KeepAlive(mutex);
         }
         public static string AccentHex = Accent.Default;
-        public static void LoadTheme(Application app)
+        // look: "cyber" / "classic", or null = the one in Settings. The cyber dictionary goes over the classic one (same keys win).
+        public static void LoadTheme(Application app, string look = null)
         {
-            string xaml;
-            using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowGuard.Theme.xaml")) using (var r = new StreamReader(s)) xaml = r.ReadToEnd();
-            AccentHex = Accent.Current(GuardSettings.Load().UseHallowAccent);
+            var st = GuardSettings.Load();
+            AccentHex = Accent.Current(st.UseHallowAccent);
+            HallowGuard.Look.Current = HallowGuard.Look.Normalize(look ?? st.Look);
             app.Resources.MergedDictionaries.Clear();
-            app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(xaml, AccentHex)));
+            app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(Res("HallowGuard.Theme.xaml"), AccentHex)));
+            if (HallowGuard.Look.Cyber) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Res("HallowGuard.ThemeCyber.xaml")));
         }
+        static string Res(string name) { using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) using (var r = new StreamReader(s)) return r.ReadToEnd(); }
 
         // --snap <folder>: every page rendered off-screen with made-up data (never this PC's real files, names or settings)
+        // v1.4: both looks - the cyber look (the default) in the folder itself, Hallow classic in <folder>\classic
         static void SnapAll(string dir)
+        {
+            LoadTheme(Application.Current, HallowGuard.Look.CyberName); SnapSet(dir);
+            LoadTheme(Application.Current, HallowGuard.Look.ClassicName); SnapSet(Path.Combine(dir, "classic"));
+        }
+        static void SnapSet(string dir)
         {
             var c = new Controller(true, true);
             var now = DateTime.Now;
@@ -89,6 +98,10 @@ namespace HallowGuard
             c.S.AwayScan = false; c.S.AwayEvery = "weekly"; c.AwayStatus = null;
             c.SnapLookup = new VtResult { Found = true, Malicious = 9, Suspicious = 2, Undetected = 61 }.Summary; w.Show("leftovers"); Snap.Save(w, Path.Combine(dir, "leftovers-lookup.png"), 1040, 720);
             Snap.Save(CrashNotice.Make(Path.Combine(dir, "example.txt")), Path.Combine(dir, "crash.png"), 440, 0);
+            // v1.4: the look picker in Settings, the scan console further on, and a PC in good shape (the pulsing ring)
+            w.Show("settings"); Snap.Save(w, Path.Combine(dir, "settings-look.png"), 1040, 720);
+            c.SnapScanning(); c.SnapMoreLines(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-console.png"), 1040, 720);
+            c.SnapSecure(); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-secure.png"), 1040, 720);
         }
     }
 
@@ -197,7 +210,33 @@ namespace HallowGuard
             S.WatchDownloads = true;
             LastScanMessage = "Quick scan finished 2 days ago - nothing found.";
         }
-        public void SnapScanning() { Current = new ScanJob(null, "full", null) { Start = DateTime.Now.AddMinutes(-7).AddSeconds(-12) }; }
+        public void SnapScanning()
+        {
+            Current = new ScanJob(null, "full", null) { Start = DateTime.Now.AddMinutes(-7).AddSeconds(-12) };
+            // what MpCmdRun says (made up, like the rest)
+            lock (Current.Lines) { Current.Lines.Add("Scan starting..."); Current.Times.Add(Current.Start.AddSeconds(1)); }
+        }
+        public void SnapMoreLines() { lock (Current.Lines) { Current.Start = DateTime.Now.AddMinutes(-41).AddSeconds(-5); Current.Times[0] = Current.Start.AddSeconds(1); } }
+        // a PC in good shape (the "secure" overview)
+        public void SnapSecure()
+        {
+            Current = null;
+            foreach (var x in Checks) if (x.State == CheckState.Warn || x.State == CheckState.Bad) { x.State = CheckState.Good; x.Penalty = 0; x.FixLabel = null; }
+            ScoreValue = Score.Total(Checks); Changes = null; NewIds.Clear();
+            Net = FakeExtras.Network(); Net.Listeners.RemoveAll(l => l.V == Verdict.Suspicious); Net.Apps.RemoveAll(a => a.Name == "updsvc");
+            Exts = FakeExtras.Extensions().Where(e => e.Risk != "High").ToList();
+            SetFamily(FakeFamily.Sample()); if (AppChecks != null) foreach (var x in AppChecks) if (!x.NotInstalled && x.Penalty > 0) { x.State = CheckState.Good; x.Penalty = 0; }
+            AppsValue = FamilyScore.AppsScore(AppChecks); MoreValue = MoreScore.GroupScore(MoreChecks); FamilyValue = FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks);
+        }
+        public IBusySource BusySource { get { return busySrc; } }
+        // v1.4: Settings > Look
+        public void SetLook(string look)
+        {
+            S.Look = HallowGuard.Look.Normalize(look); S.Save();
+            if (HallowGuard.Look.Current == S.Look) return;
+            Program.LoadTheme(Application.Current, S.Look);
+            if (main != null) main.Rebuild();
+        }
 
         // ---- window
         public void ShowMain(string page)
@@ -736,7 +775,7 @@ namespace HallowGuard
         public void ApplyAccent()
         {
             var a = Accent.Current(S.UseHallowAccent); if (a == Program.AccentHex) return;
-            Program.LoadTheme(Application.Current);
+            Program.LoadTheme(Application.Current, S.Look);
             if (main != null) main.Rebuild();
         }
         GhRelease pending; public GhRelease PendingUpdate { get { return pending; } }

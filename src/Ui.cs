@@ -17,15 +17,23 @@ namespace HallowGuard
         public static Brush R(string key) { return (Brush)Application.Current.FindResource(key); }
         public static Style S(string key) { return (Style)Application.Current.FindResource(key); }
         public static Brush Accent { get { return B(Program.AccentHex); } }
-        public static readonly Brush Green = B("#6ED28C"), Amber = B("#F0BE5A"), Red = B("#E05A64");
+        static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64");
+        // v1.4: the cyber look has its own (brighter) status colours; classic keeps the 1.3 ones
+        public static Brush Green { get { return Look.Cyber ? Hud.Green : green; } }
+        public static Brush Amber { get { return Look.Cyber ? Hud.Amber : amber; } }
+        public static Brush Red { get { return Look.Cyber ? Hud.Red : red; } }
+        // the highlight for icons and headings: cyan in the cyber look, the Hallow accent in classic
+        public static Brush Hi { get { return Look.Cyber ? Hud.Cyan : Accent; } }
 
         public static void Dress(Window w, string title, double width)
         {
             w.Title = title; w.Width = width; w.SizeToContent = SizeToContent.Height;
-            w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = new FontFamily("Segoe UI"); w.FontSize = 12.5;
+            Restyle(w); w.FontSize = 12.5;
             try { w.Icon = AppIcon(); } catch { }
             w.SourceInitialized += (s, e) => { int dark = 1; DwmSetWindowAttribute(new WindowInteropHelper(w).Handle, 20, ref dark, 4); };
         }
+        // the window's colours and font for the current look (again after Settings > Look changes)
+        public static void Restyle(Window w) { w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = Look.Cyber ? Hud.Body : new FontFamily("Segoe UI"); }
         static ImageSource icon;
         public static ImageSource AppIcon()
         {

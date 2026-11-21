@@ -6,7 +6,7 @@ Part of the Hallow family of Windows apps. Hallow Guard shows how well your PC i
 **Microsoft Defender** to scan when you want it to. It uses Defender's engine; it is **not an antivirus of its own**, and it
 never disables, replaces or weakens Defender.
 
-![Overview](docs/overview.png)
+![Overview in the cyber look (made-up data)](docs/overview.png)
 
 ## What it does
 
@@ -90,6 +90,35 @@ never disables, replaces or weakens Defender.
   the to-do list. `status.json` adds `ransomware`, `moreScore`, `network` and `extensions` - counts only, never names,
   paths or addresses.
 
+## The cyber look (new in 1.4)
+
+![Scan: a live console of what Defender's scanner says (made-up data)](docs/scan.png)
+
+1.4 is a new look only - every feature, button and rule from 1.3 is the same.
+
+- **A security console**: near-black blue, thin glowing cyan lines, corner brackets on every card, a faint hex grid and a
+  vignette. Electric green means secure, amber a warning, magenta-red a threat. Headings in spaced capitals (Bahnschrift),
+  numbers, IDs, paths and logs in a monospace font (Cascadia Mono, or Consolas when it isn't installed).
+- **Overview**: the score is a radar ring - a segmented arc with tick marks that counts up when it appears, a sweep line
+  while the checks run and a slow pulsing glow when the PC is secure - with a `STATUS: SECURE / ATTENTION / AT RISK`
+  readout and the three groups as segmented bars. Every check is a row with a status LED and a code: `[OK]`, `[WARN]`,
+  `[RISK]`, `[INFO]`, `[UNK]`, `[N/A]` - nothing is told by colour alone.
+- **Scan**: a big elapsed timer, a scanning beam over scanlines and a terminal-style console with timestamps: the exact
+  `MpCmdRun` command, everything it prints, and a heartbeat each minute while it still runs (Defender gives no percentage).
+- **History and Leftovers**: tags like `SEV:SEVERE`, Defender's threat ID in hex, Guard's scrambled ID for each leftover,
+  and a pulsing red edge on suspicious items. **Network**: a connection map - this PC in the middle, the apps around it with
+  their internet and local hosts, suspicious ones in red - above the same list as before.
+- **Sidebar**: numbered pages with a neon bar on the open one, icons that glow on hover, and a small telemetry block (PC
+  uptime, last check, definitions age, engine).
+- **Cheap on purpose**: animations run at 24 frames a second and only while the window is visible, not minimized and in
+  front. They stop in the tray, while a game or full-screen app runs (the same check as the scan while you're away) and when
+  Windows' *Show animations* is off - then every animated part shows a still frame.
+- **Keyboard focus** is a neon outline; text contrast is at least 4.5:1 (checked by the tests).
+- **Settings > Look**: *Cyber* (the default) or *Hallow classic* - the 1.3 look, untouched (it keeps the Hallow accent from
+  Hallow Toolkit everywhere; the cyber look keeps it for the HALLOW name and "new since last week" marks).
+
+![Hallow classic (made-up data)](docs/classic.png)
+
 ## Scans while you're away, weekly reports, what changed (new in 1.3)
 
 ![Reports (made-up data)](docs/reports.png)
@@ -143,7 +172,7 @@ while you're away, the weekly report and the weekly reminder.
 .\build.ps1          # HallowGuard.exe with the C# compiler that ships with Windows (.NET Framework 4.8)
 .\build.ps1 -Tests   # also tests\GuardTests.exe
 .\tests\GuardTests.exe
-.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data
+.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data (cyber, and classic\ in <folder>\classic)
 ```
 
 The tests never run a real Defender scan: they use a stand-in `MpCmdRun`, made-up system checks, a local stand-in for
@@ -158,6 +187,10 @@ that records the balloon - the scan while you're away is never started for real 
 
 ## What's new
 
+- **1.4** - the cyber look: a security-console design with a radar score ring, `[OK]` / `[WARN]` / `[RISK]` status rows,
+  a live scan console with timer and scanning beam, threat tags, a network connection map and a telemetry sidebar. Calm and
+  cheap: animations only while the window is in front, never during a game or full-screen app, and not when Windows'
+  animations are off. Settings > Look switches back to *Hallow classic* (the 1.3 look). Nothing else changed.
 - **1.3** - a quick scan while you're away (off by default: idle 10 minutes, no game, plugged in, low priority, stops when
   you come back), a weekly safety report (score then vs now, fixed, new issues, scans, threats; a Reports page, the `report`
   pipe command and `lastReport` in `status.json`, one balloon through Hallow Hub) and "what changed since last week" for the

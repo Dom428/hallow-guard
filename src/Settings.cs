@@ -54,8 +54,10 @@ namespace HallowGuard
         [DataMember] public bool ReportNotify = true;
         [DataMember] public string LastReportWeek;
         [DataMember] public string LastReportNotified;
+        // v1.4: the look - "cyber" (default) or "classic" (the 1.3 look)
+        [DataMember] public string Look = HallowGuard.Look.CyberName;
 
-        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; }
+        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.CyberName; }
 
         public static GuardSettings Load()
         {
@@ -75,6 +77,7 @@ namespace HallowGuard
         {
             if (Scans == null) Scans = new List<ScanRecord>();
             if (AwayEvery != "daily") AwayEvery = "weekly";
+            Look = HallowGuard.Look.Normalize(Look);
             Scans.RemoveAll(x => x == null);
             if (Scans.Count > 30) Scans.RemoveRange(30, Scans.Count - 30);
         }

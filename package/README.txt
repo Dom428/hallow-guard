@@ -8,6 +8,15 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.4
+- A new "cyber" look: a security-console design with a radar safety score, status rows
+  with [OK] / [WARN] / [RISK] codes, a live scan console with a timer, threat tags, a
+  network connection map and a small telemetry block. Animations only run while the
+  window is open and in front - never during a game or full-screen app, and not when
+  Windows' "Show animations" is off.
+- Settings > Look switches back to "Hallow classic" (the 1.3 look). Every feature works
+  exactly as before.
+
 WHAT'S NEW IN 1.3
 - "Run a quick scan when I'm away" (Settings, off by default, daily or weekly): when you
   haven't touched the mouse or keyboard for 10 minutes, no game or full-screen app is

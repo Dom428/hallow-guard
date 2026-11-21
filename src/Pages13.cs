@@ -25,7 +25,7 @@ namespace HallowGuard
         {
             var s = new StackPanel();
             var d = c.Changes;
-            s.Children.Add(IconRow("calendar-week", Ui.Accent, d == null ? "What changed since last week" : "What changed since " + Weeks.Nice(d.Since)));
+            s.Children.Add(IconRow("calendar-week", Ui.Hi, d == null ? "What changed since last week" : "What changed since " + Weeks.Nice(d.Since)));
             if (d == null)
             {
                 s.Children.Add(Ui.Muted("This is the first look Hallow Guard has kept. From next week, new and removed startup items, tasks, services, extensions and programs open to the network show here.", 12, 0));
@@ -62,7 +62,7 @@ namespace HallowGuard
         FrameworkElement AwayCard()
         {
             var s = new StackPanel();
-            s.Children.Add(IconRow("moon", Ui.Accent, "Scans and reports"));
+            s.Children.Add(IconRow("moon", Ui.Hi, "Scans and reports"));
             s.Children.Add(Ui.Switch("Run a quick scan when I'm away", c.S.AwayScan, v => c.SetAway(v, null)));
             var every = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(30, 2, 0, 6) };
             var how = Ui.Muted("How often:", 12, 0); how.VerticalAlignment = VerticalAlignment.Center; how.Margin = new Thickness(0, 0, 10, 0); every.Children.Add(how);
@@ -116,6 +116,7 @@ namespace HallowGuard
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
             var score = J.Int(r, "score"); var delta = WeeklyReport.Delta(r);
             var big = new TextBlock { Text = score == null ? "-" : score.ToString(), FontSize = 30, FontWeight = FontWeights.Bold, Foreground = score == null ? Ui.R("Muted") : ScoreBrush(score.Value), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+            if (Look.Cyber) { big.FontFamily = Hud.Head; big.FontWeight = FontWeights.SemiBold; }
             DockPanel.SetDock(big, Dock.Left); head.Children.Add(big);
             if (delta != null)
             {
@@ -163,7 +164,7 @@ namespace HallowGuard
                         t.Margin = new Thickness(22, 0, 0, 2); s.Children.Add(t);
                     }
             }
-            var card = Card(s, 10); if (full) { card.BorderBrush = Ui.Accent; }
+            var card = Card(s, 10); if (full) { card.BorderBrush = Ui.Hi; }
             return card;
         }
     }

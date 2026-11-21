@@ -80,6 +80,8 @@ namespace HallowGuard
         public readonly string Kind, Target; public DateTime Start = DateTime.Now;
         public volatile bool Done; public string Result, Error; public int Threats; public List<string> Names = new List<string>();
         public readonly List<string> Lines = new List<string>();
+        public readonly List<DateTime> Times = new List<DateTime>();   // v1.4: when each line came (the Scan page's console)
+        public string Exe { get { return exe; } }
         public bool Away, Low;   // v1.3: the scan while you're away runs MpCmdRun at the lowest priority (Idle)
         public event Action<ScanJob> Finished;
         Process p; volatile bool cancelled; readonly string exe;
@@ -98,9 +100,9 @@ namespace HallowGuard
                     var psi = new ProcessStartInfo(exe, MpCmd.Args(Kind, Target)) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.Default };
                     p = Process.Start(psi);
                     if (Low) try { p.PriorityClass = ProcessPriorityClass.Idle; } catch { }
-                    p.ErrorDataReceived += (s, e) => { if (e.Data != null) lock (Lines) Lines.Add(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data != null) lock (Lines) { Lines.Add(e.Data); Times.Add(DateTime.Now); } };
                     p.BeginErrorReadLine();
-                    string line; while ((line = p.StandardOutput.ReadLine()) != null) lock (Lines) Lines.Add(line);
+                    string line; while ((line = p.StandardOutput.ReadLine()) != null) lock (Lines) { Lines.Add(line); Times.Add(DateTime.Now); }
                     p.WaitForExit(); exit = p.ExitCode;
                 }
                 catch (Exception e) { Error = e.Message; }
