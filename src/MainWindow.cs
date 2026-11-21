@@ -1,4 +1,5 @@
-﻿// Hallow Guard main window: the page list on the left (Overview, Scan, History, Leftovers, Settings) and the open page.
+﻿// Hallow Guard main window: the page list on the left (Overview, Scan, History, Network, Extensions, Ransomware, Leftovers,
+// Settings) and the open page. The v1.2 pages (Network, Extensions, Ransomware) are in Pages12.cs.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +13,7 @@ using WF = System.Windows.Forms;
 
 namespace HallowGuard
 {
-    public class MainWindow : Window
+    public partial class MainWindow : Window
     {
         readonly Controller c;
         string page = "overview";
@@ -49,7 +50,9 @@ namespace HallowGuard
             head.Children.Add(Ui.Muted("Your safety center, powered by Microsoft Defender", 11.5, 0));
             DockPanel.SetDock(head, Dock.Top); side.Children.Add(head);
             nav.Clear();
-            foreach (var p in new[] { Tuple.Create("overview", "Overview", "shield-halved"), Tuple.Create("scan", "Scan", "magnifying-glass"), Tuple.Create("history", "History", "clock-rotate-left"), Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("settings", "Settings", "gear") })
+            foreach (var p in new[] { Tuple.Create("overview", "Overview", "shield-halved"), Tuple.Create("scan", "Scan", "magnifying-glass"), Tuple.Create("history", "History", "clock-rotate-left"),
+                Tuple.Create("network", "Network", "globe"), Tuple.Create("extensions", "Extensions", "puzzle-piece"), Tuple.Create("ransomware", "Ransomware", "lock"),
+                Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("settings", "Settings", "gear") })
             {
                 var id = p.Item1;
                 var b = new Button { Style = Ui.S("Nav"), Content = Icons.WithText(p.Item3, p.Item2, 15, Ui.R("Text")), Margin = new Thickness(10, 0, 10, 0) };
@@ -76,7 +79,7 @@ namespace HallowGuard
 
         void OnChanged(string what)
         {
-            if (what == page || (what == "checks" && page == "overview") || (what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history")) Show(page);
+            if (what == page || (what == "checks" && (page == "overview" || page == "ransomware")) ||(what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history")) Show(page);
         }
 
         public void Show(string p)
@@ -90,6 +93,9 @@ namespace HallowGuard
                 case "scan": el = ScanPage(); break;
                 case "history": el = HistoryPage(); break;
                 case "leftovers": el = LeftoversPage(); break;
+                case "network": el = NetworkPage(); break;
+                case "extensions": el = ExtensionsPage(); break;
+                case "ransomware": el = RansomwarePage(); break;
                 case "settings": el = SettingsPage(); break;
                 default: page = "overview"; el = OverviewPage(); break;
             }
@@ -158,12 +164,13 @@ namespace HallowGuard
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             info.Children.Add(Ui.T(score < 0 ? "Checking your PC..." : Score.Label(score), 24, true, score < 0 ? null : ScoreBrush(score), 4));
             var todo = c.Todo();
-            info.Children.Add(Ui.Muted(c.Checks == null ? "Reading Windows Security, system settings and your Hallow apps - nothing is changed." : (todo.Count == 0 ? "Everything Hallow Guard checks is in good shape." : "One score for the whole PC: Windows and your Hallow apps.") + (c.CheckedAt == null ? "" : "  Checked " + Score.Ago(c.CheckedAt, DateTime.Now) + "."), 12.5, 8));
+            info.Children.Add(Ui.Muted(c.Checks == null ? "Reading Windows Security, system settings and your Hallow apps - nothing is changed." : (todo.Count == 0 ? "Everything Hallow Guard checks is in good shape." : "One score for the whole PC: Windows, your Hallow apps, the network and your browsers.") + (c.CheckedAt == null ? "" : "  Checked " + Score.Ago(c.CheckedAt, DateTime.Now) + "."), 12.5, 8));
             if (c.ScoreValue >= 0)
             {
                 var chips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
                 chips.Children.Add(GroupChip("Windows", c.ScoreValue));
                 chips.Children.Add(GroupChip("Hallow apps", c.AppsValue));
+                chips.Children.Add(GroupChip("Network & browsers", c.MoreValue));
                 info.Children.Add(chips);
             }
             var again = Ui.Btn(c.Checking ? "Checking..." : "Check again", () => c.RefreshChecks()); again.IsEnabled = !c.Checking;
@@ -203,6 +210,12 @@ namespace HallowGuard
                 foreach (var ch in c.AppChecks.OrderBy(x => x.NotInstalled ? 1 : 0).ThenBy(x => Rank(x.State))) sp.Children.Add(CheckCard(ch));
                 sp.Children.Add(Ui.Muted("Hallow apps that aren't installed never cost points. Installed ones can take off a few: Hallow Keys up to " + FamilyScore.KeysMax + " (counts only - Guard never opens your vault), Hallow Vault up to " + FamilyScore.VaultMax + ", Hallow Shield 2; the family score is the Windows score minus those points (at most " + FamilyScore.AppsCap + ").", 11.5, 8));
             }
+            if (c.MoreChecks != null)
+            {
+                sp.Children.Add(Section("Network & browsers", c.MoreValue + " of 100"));
+                foreach (var ch in Ordered(c.MoreChecks)) sp.Children.Add(CheckCard(ch));
+                sp.Children.Add(Ui.Muted("A suspicious program open to the network costs " + NetView.SuspiciousPoints + " points, each high-risk browser extension " + ExtScan.HighPoints + " (at most " + ExtScan.MaxPoints + "); this group takes at most " + MoreScore.Cap + " off the family score.", 11.5, 8));
+            }
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these. \"Open settings\" takes you to the right Windows page; nothing is changed behind your back.", 11.5, 0));
             return sp;
         }
@@ -226,7 +239,8 @@ namespace HallowGuard
         Button FixButton(Check ch, bool accent)
         {
             var act = ch.FixAction; var fb = Ui.Btn(ch.FixLabel, () => c.RunFix(act), accent); fb.Margin = new Thickness(12, 0, 0, 0); fb.VerticalAlignment = VerticalAlignment.Center;
-            fb.ToolTip = act.StartsWith("admin:") ? "Windows asks for admin first. It only reads the setting." : act.StartsWith("scan:") || act.StartsWith("page:") ? "Asks Microsoft Defender to scan."
+            fb.ToolTip = act.StartsWith("admin:") ? "Windows asks for admin first. It only reads the setting." : act.StartsWith("scan:") || act == "page:scan" ? "Asks Microsoft Defender to scan."
+                : act.StartsWith("page:") ? "Opens Hallow Guard's page about it - nothing is changed."
                 : act.StartsWith("url:") ? "Opens the app's page on GitHub in your browser." : act.StartsWith("app:") ? "Opens the Hallow app - Hallow Guard doesn't change anything in it." : "Opens the right Windows page - Hallow Guard doesn't change it for you.";
             return fb;
         }

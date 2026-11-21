@@ -331,11 +331,13 @@ namespace HallowGuard
         // null when no Hallow app is installed (then there's nothing to score)
         public static int? AppsScore(List<Check> apps) { if (apps == null || !apps.Any(c => !c.NotInstalled)) return null; return Math.Max(0, Math.Min(100, 100 - AppsPenalty(apps))); }
         public static int Combined(int windows, List<Check> apps) { if (windows < 0) return -1; return Math.Max(0, Math.Min(100, windows - Math.Min(AppsCap, AppsPenalty(apps)))); }
+        // v1.2: minus the Network & browsers group too (capped at MoreScore.Cap)
+        public static int Combined(int windows, List<Check> apps, List<Check> more) { var c = Combined(windows, apps); return c < 0 ? -1 : Math.Max(0, c - MoreScore.Penalty(more)); }
         // the one to-do list: what costs the most points first, only things with a button, never "not installed"
         public static List<Check> Todo(IEnumerable<Check> all, int max = 5)
         {
             return (all ?? new Check[0]).Where(c => c != null && c.FixAction != null && !c.NotInstalled && (c.Penalty > 0 || c.State == CheckState.Bad || c.State == CheckState.Warn))
-                .OrderByDescending(c => c.Penalty).ThenBy(c => c.State == CheckState.Bad ? 0 : 1).ThenBy(c => c.Group == "windows" ? 0 : 1).Take(max).ToList();
+                .OrderByDescending(c => c.Penalty).ThenBy(c => c.State == CheckState.Bad ? 0 : 1).ThenBy(c => c.Group == "windows" ? 0 : c.Group == "more" ? 1 : 2).Take(max).ToList();
         }
     }
 

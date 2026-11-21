@@ -61,6 +61,35 @@ never disables, replaces or weakens Defender.
   `familyLabel`, `windowsScore`, `appsScore`, `todo` (how many to-dos) and `family` (each app: good / warn / bad /
   unknown / info / missing).
 
+## Ransomware, network and extensions (new in 1.2)
+
+![Network (made-up data)](docs/network.png)
+
+- **Ransomware** page: Windows' *Controlled folder access* - off, on or audit mode, the folders you added and the apps you
+  allowed (read from `MSFT_MpPreference`; when Windows only shows the lists to administrators, it says so). It explains
+  what it does, lists folders worth protecting - Documents, Pictures and Desktop (Windows' own list), Saved Games, My Games
+  and the game-save folders Hallow Vault lists in its `status.json`, if it lists any - and warns that it can stop games and
+  apps from writing saves until you allow them. Every button opens `windowsdefender://ransomwareprotection/`; Guard never
+  changes it. Off costs 3 points, audit mode 2.
+- **Network** page: apps with connections right now (`GetExtendedTcpTable`), grouped by program, with how many hosts on the
+  internet and on your local network; programs **open to the network** (TCP listening / UDP sockets not bound to loopback),
+  each with its ports, signer and whether Windows Firewall lets it in on private and public networks (`HNetCfg.FwPolicy2`,
+  read-only: block rules win, then allow rules for the program or port, then the default inbound action). Unsigned listeners
+  running from Temp / AppData / Downloads are **Suspicious** (6 points). Countries aren't shown - that needs an online
+  service and Guard sends nothing out; names (reverse DNS) are looked up only when you click **Look up names**. Buttons:
+  open the file location, scan with Defender, open Windows Firewall.
+- **Extensions** page: every extension in Chrome, Edge, Brave, Opera (GX) and Firefox profiles - manifests read with shared
+  access, `Preferences` / `Secure Preferences` / `extensions.json` read from a copy, locked files skipped - rated **High**,
+  **Medium**, **Low** or **Known** (Hallow Keys and Hallow Shield, which need every site to fill passwords and block ads),
+  with the reasons: access to every site, sensitive permissions (debugger, proxy, nativeMessaging, webRequestBlocking,
+  cookies, history, management, declarativeNetRequest with every site), not from the store (unpacked, sideloaded or by
+  policy - `location` / `from_webstore`, Firefox's `foreignInstall`) and not updated for a year (the browser's date, else
+  the extension folder's). Each high-risk extension that's switched on costs 3 points (at most 6). The only button opens
+  that browser's extensions page.
+- The network and extension checks form the **Network & browsers** group: at most 10 points off the family score, and on
+  the to-do list. `status.json` adds `ransomware`, `moreScore`, `network` and `extensions` - counts only, never names,
+  paths or addresses.
+
 ## What it won't do (on purpose)
 
 - It never switches Defender off or changes its settings, and never changes a security setting by itself. The one
@@ -87,10 +116,17 @@ and Desktop shortcuts. Settings > *Start with Windows* keeps it in the tray for 
 
 The tests never run a real Defender scan: they use a stand-in `MpCmdRun`, made-up system checks, a local stand-in for
 VirusTotal and fake registry keys of their own. The family tests use fake `status.json` files for every app state (missing,
-running, stopped, stale) and fake browser profile folders (locked and broken files included).
+running, stopped, stale) and fake browser profile folders (locked and broken files included). The 1.2 tests use a fake
+Controlled folder access state, fake TCP/UDP table bytes and firewall rules, and fake Chrome / Edge / Opera / Firefox
+profiles with manifests and Preferences (and check the browser files are byte-for-byte unchanged).
+`tests\GuardTests.exe --real-timing` runs the real read-only 1.2 checks once and prints only timings and counts.
 
 ## What's new
 
+- **1.2** - ransomware protection (Controlled folder access, read-only, with folders worth protecting and the game-save
+  warning), a network view (apps connected right now, programs open to the network with signer and firewall answer,
+  suspicious unsigned listeners) and browser extension risk (High / Medium / Low / Known with reasons) - new pages, and
+  a *Network & browsers* group in the family score and to-do list.
 - **1.1** - one family safety score: the Overview covers Windows *and* the Hallow apps (Keys' password-health counts,
   Vault's backups, Shield in your browsers, Assist's unattended access), one to-do list, a score per group; `familyScore` in
   `status.json`.

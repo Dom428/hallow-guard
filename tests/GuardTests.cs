@@ -28,10 +28,11 @@ namespace HallowGuard.Tests
         {
             if (args.Length > 0 && (args[0] == "-Scan" || args[0] == "-Cancel")) return FakeMpCmdRun(args);
             if (args.Contains("--real-smoke")) return RealSmoke();
+            if (args.Contains("--real-timing")) return V12Tests.RealTiming();
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }
@@ -44,11 +45,11 @@ namespace HallowGuard.Tests
         static void Scores()
         {
             var now = new DateTime(2026, 11, 20, 12, 0, 0);
-            var good = new SystemFacts { DefenderRead = true, AvEnabled = true, RealTime = true, Tamper = true, SigAgeDays = 0, QuickScan = now.AddDays(-1), FullScan = now.AddDays(-10), FwDomain = true, FwPrivate = true, FwPublic = true, SmartScreen = true, LastUpdate = now.AddDays(-5), RebootPending = false, BitLocker = "on", Uac = true, UacPrompts = true, SecureBoot = true, MemoryIntegrity = true, Now = now };
+            var good = new SystemFacts { DefenderRead = true, AvEnabled = true, RealTime = true, Tamper = true, SigAgeDays = 0, QuickScan = now.AddDays(-1), FullScan = now.AddDays(-10), FwDomain = true, FwPrivate = true, FwPublic = true, SmartScreen = true, LastUpdate = now.AddDays(-5), RebootPending = false, BitLocker = "on", Uac = true, UacPrompts = true, SecureBoot = true, MemoryIntegrity = true, Cfa = new CfaFacts { Read = true, Mode = 1 }, Now = now };
             var l = Score.Evaluate(good, null);
             Ok(Score.Total(l) == 100 && l.All(x => x.State == CheckState.Good), "everything on: 100, all good");
             Ok(Score.Label(100) == "Looking good" && Score.Label(75) == "A few things to look at" && Score.Label(40) == "Needs attention", "score labels");
-            Ok(new[] { "av", "realtime", "signatures", "tamper", "scan", "firewall", "smartscreen", "update", "bitlocker", "uac", "secureboot", "hvci" }.All(id => Find(l, id) != null), "every check is there");
+            Ok(new[] { "av", "realtime", "signatures", "tamper", "scan", "firewall", "smartscreen", "update", "bitlocker", "uac", "secureboot", "hvci", "cfa" }.All(id => Find(l, id) != null), "every check is there (1.2: cfa too)");
 
             var f = Clone(good); f.AvEnabled = false; f.RealTime = false; l = Score.Evaluate(f, null);
             Ok(Find(l, "av").State == CheckState.Bad && Find(l, "av").Penalty == 30 && Find(l, "realtime").Penalty == 25 && Score.Total(l) == 45, "Defender off, nothing else: -30 -25 = 45");
@@ -96,7 +97,7 @@ namespace HallowGuard.Tests
         }
         static SystemFacts Clone(SystemFacts f)
         {
-            return new SystemFacts { DefenderRead = f.DefenderRead, AvEnabled = f.AvEnabled, RealTime = f.RealTime, Tamper = f.Tamper, SigAgeDays = f.SigAgeDays, QuickScan = f.QuickScan, FullScan = f.FullScan, FwDomain = f.FwDomain, FwPrivate = f.FwPrivate, FwPublic = f.FwPublic, SmartScreen = f.SmartScreen, LastUpdate = f.LastUpdate, RebootPending = f.RebootPending, BitLocker = f.BitLocker, Uac = f.Uac, UacPrompts = f.UacPrompts, SecureBoot = f.SecureBoot, MemoryIntegrity = f.MemoryIntegrity, Now = f.Now };
+            return new SystemFacts { DefenderRead = f.DefenderRead, AvEnabled = f.AvEnabled, RealTime = f.RealTime, Tamper = f.Tamper, SigAgeDays = f.SigAgeDays, QuickScan = f.QuickScan, FullScan = f.FullScan, FwDomain = f.FwDomain, FwPrivate = f.FwPrivate, FwPublic = f.FwPublic, SmartScreen = f.SmartScreen, LastUpdate = f.LastUpdate, RebootPending = f.RebootPending, BitLocker = f.BitLocker, Uac = f.Uac, UacPrompts = f.UacPrompts, SecureBoot = f.SecureBoot, MemoryIntegrity = f.MemoryIntegrity, Cfa = f.Cfa, Now = f.Now };
         }
 
         // ---------------- signer / path verdicts
@@ -364,11 +365,23 @@ namespace HallowGuard.Tests
                 Ok(st != null && (bool)st["running"] && !(bool)st["scanning"] && !(bool)st["watchDownloads"] && (bool)st["weeklyReminder"] && st.ContainsKey("lastScan") && st.ContainsKey("lastCrash"), "status: running, not scanning, Watch Downloads off, reminder on by default");
                 Ok(File.Exists(Path.Combine(dir, "status.json")) && File.ReadAllText(Path.Combine(dir, "status.json")).Contains("\"app\":\"Guard\""), "status.json written in the data folder");
                 // v1.1: the family score next to the old fields (Hub reads "score" - unchanged: the Windows score)
-                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("familyScore") && st["familyScore"] != null) break; Thread.Sleep(200); }
-                int win = Convert.ToInt32(st["score"]);
-                Ok(st["familyScore"] != null && Convert.ToInt32(st["familyScore"]) == win - 9 && Convert.ToInt32(st["windowsScore"]) == win && Convert.ToInt32(st["appsScore"]) == 91, "status: familyScore = Windows score - 9 (Keys: 2 reused, 1 weak), windowsScore = score, appsScore 91 (" + st["familyScore"] + ")");
+                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("familyScore") && st["familyScore"] != null && st["moreScore"] != null && st["network"] != null && st["extensions"] != null) break; Thread.Sleep(200); }
+                int win = Convert.ToInt32(st["score"]); int more = MoreScore.Penalty(MoreScore.Evaluate(FakeExtras.Network(), FakeExtras.Extensions()));
+                Ok(st["familyScore"] != null && Convert.ToInt32(st["familyScore"]) == win - 9 - more && more == 10 && Convert.ToInt32(st["windowsScore"]) == win && Convert.ToInt32(st["appsScore"]) == 91, "status: familyScore = Windows score - 9 (Keys: 2 reused, 1 weak) - 10 (Network & browsers, capped), windowsScore = score, appsScore 91 (" + st["familyScore"] + ")");
                 var fam = st["family"] as Dictionary<string, object>;
-                Ok(fam != null && (string)fam["keys"] == "warn" && (string)fam["vault"] == "missing" && (string)fam["assist"] == "missing" && (string)fam["shield"] == "missing" && st["todo"] != null && (string)st["familyLabel"] == Score.Label(win - 9), "status: family states (keys warn, the rest missing), familyLabel and a to-do count");
+                Ok(fam != null && (string)fam["keys"] == "warn" && (string)fam["vault"] == "missing" && (string)fam["assist"] == "missing" && (string)fam["shield"] == "missing" && st["todo"] != null && (string)st["familyLabel"] == Score.Label(win - 9 - more), "status: family states (keys warn, the rest missing), familyLabel and a to-do count");
+                // v1.2: ransomware, network and extension counts in status (counts only), the new group in the test state
+                var net = st["network"] as Dictionary<string, object>; var ext = st["extensions"] as Dictionary<string, object>;
+                Ok((string)st["ransomware"] == "off" && net != null && Convert.ToInt32(net["suspicious"]) == 1 && Convert.ToInt32(net["listeners"]) == 5 && ext != null && Convert.ToInt32(ext["high"]) == 2 && Convert.ToInt32(ext["known"]) == 2 && Convert.ToInt32(st["moreScore"]) == 88, "status (1.2): ransomware off, 1 suspicious of 5 listeners, 2 high-risk / 2 known extensions, moreScore 88");
+                var stJson = Family.Json(st);
+                Ok(!stJson.Contains("updsvc") && !stJson.Contains("203.0.113") && !stJson.Contains("PDF Tools"), "status.json has counts only - no program names, addresses or extension names");
+                var mc = ((System.Collections.IEnumerable)((Dictionary<string, object>)st["test"])["moreChecks"]).Cast<object>().Select(x => x.ToString()).ToList();
+                var todoIds = ((System.Collections.IEnumerable)((Dictionary<string, object>)st["test"])["todoIds"]).Cast<object>().Select(x => x.ToString()).ToList();
+                Ok(mc.Contains("listeners=Bad -6") && mc.Contains("extensions=Warn -6") && todoIds.Contains("listeners") && todoIds.Contains("extensions"), "test copy: Network & browsers checks, both on the to-do list (" + string.Join(", ", todoIds) + ")");
+                Ok(send("test-network") == "ok" && send("test-extensions") == "ok" && send("test-names") == "ok" && send("test-extpage Chrome") == "ok", "network / extensions re-read; Look up names and the extensions page do nothing in the test copy");
+                Thread.Sleep(800); var lg = ((System.Collections.IEnumerable)((Dictionary<string, object>)status()["test"])["log"]).Cast<object>().Select(x => x.ToString()).ToList();
+                Ok(lg.Any(x => x.Contains("tests never send anything")) && lg.Any(x => x.Contains("tests never open browsers")), "log: no names looked up, no browser opened");
+                Ok(send("test-fix page:ransomware") == "ok" && send("test-fix " + Ransom.Page) == "ok", "ransomware buttons in the test copy open nothing");
                 foreach (var k in new[] { "app", "version", "updated", "running", "score", "scoreLabel", "checked", "lastScan", "lastGuardScan", "lastGuardScanKind", "lastGuardScanResult", "scanning", "scanKind", "threats", "watchDownloads", "weeklyReminder", "startsWithWindows", "virusTotalKey", "lastCrash" })
                     if (!st.ContainsKey(k)) Ok(false, "status: 1.0 field kept: " + k);
                 Ok(new[] { "app", "version", "score", "scoreLabel", "threats", "lastCrash" }.All(st.ContainsKey) && (string)st["scoreLabel"] == Score.Label(win), "status: every 1.0 field is still there (backward compatible for Hub)");
@@ -376,8 +389,8 @@ namespace HallowGuard.Tests
                 Ok(((System.Collections.IEnumerable)tst["appChecks"]).Cast<object>().Select(x => x.ToString()).Contains("keys=Warn -9") && ((System.Collections.IEnumerable)tst["todoIds"]).Cast<object>().Select(x => x.ToString()).Contains("keys"), "test copy: Keys counts in the app checks and on the to-do list");
                 File.WriteAllText(Path.Combine(dir, @"HallowKeys\status.json"), "{\"app\":\"Keys\",\"version\":\"2.8\",\"locked\":true,\"health\":{\"logins\":30,\"weak\":0,\"reused\":0,\"leaked\":0,\"breached\":0,\"missing2fa\":0,\"old\":0,\"score\":100,\"when\":\"" + Family.Time(DateTime.Now) + "\"}}");
                 Ok(send("test-family") == "ok", "family re-read on request");
-                for (int i = 0; i < 50; i++) { st = status(); if (Convert.ToInt32(st["familyScore"]) == win) break; Thread.Sleep(200); }
-                Ok(Convert.ToInt32(st["familyScore"]) == win && Convert.ToInt32(st["appsScore"]) == 100, "Keys healthy again: family score = Windows score");
+                for (int i = 0; i < 50; i++) { st = status(); if (Convert.ToInt32(st["familyScore"]) == win - more) break; Thread.Sleep(200); }
+                Ok(Convert.ToInt32(st["familyScore"]) == win - more && Convert.ToInt32(st["appsScore"]) == 100, "Keys healthy again: family score = Windows score minus the Network & browsers points");
                 Ok(send("test-fix app:Keys") == "ok" && send("test-fix url:https://example.com/") == "ok", "app / url buttons in the test copy: nothing is started or opened");
                 var m = send("menu"); Ok(m != null && m.Contains("\"id\":\"quick\"") && m.Contains("\"label\":\"Quick scan\"") && m.Contains("\"id\":\"watch\""), "menu: Quick scan, Check my PC, Watch Downloads");
                 Ok(send("nonsense") == "error unknown command", "unknown command -> error");

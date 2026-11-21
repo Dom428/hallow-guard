@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.1";
+        public const string Version = "1.2";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -75,9 +75,11 @@ namespace HallowGuard
                 new ScanRecord { Kind = "custom", Target = @"D:\Old games", Start = now.AddDays(-80).ToString("o"), End = now.AddDays(-80).AddMinutes(9).ToString("o"), Result = "threats", Threats = 1, Note = "HackTool:Win32/Keygen" } };
             c.LoadSnapData();
             var w = new MainWindow(c);
-            foreach (var page in new[] { "overview", "scan", "history", "leftovers", "settings" })
+            foreach (var page in new[] { "overview", "scan", "history", "network", "extensions", "ransomware", "leftovers", "settings" })
             { w.Show(page); Snap.Save(w, Path.Combine(dir, page + ".png"), 1040, 720); }
             w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-full.png"), 1040, 0);
+            foreach (var page in new[] { "network", "extensions", "ransomware" }) { w.Show(page); Snap.Save(w, Path.Combine(dir, page + "-full.png"), 1040, 0); }
+            c.Names = FakeExtras.Names(); w.Show("network"); Snap.Save(w, Path.Combine(dir, "network-names.png"), 1040, 720); c.Names = new Dictionary<string, string>();
             c.SetFamily(FakeFamily.NoneInstalled()); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-no-apps.png"), 1040, 0);
             c.SetFamily(FakeFamily.Sample());
             c.SnapScanning(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-running.png"), 1040, 720);
@@ -107,6 +109,11 @@ namespace HallowGuard
         public ScanJob Current; readonly Queue<Tuple<string, string>> queue = new Queue<Tuple<string, string>>();
         public string LastScanMessage; public List<string> WatchLog = new List<string>();
         public string SnapLookup;
+        // v1.2: the network view, browser extension risk, ransomware folders, and the "Network & browsers" group of the score
+        public NetSnapshot Net; public bool NetReading; public Dictionary<string, string> Names = new Dictionary<string, string>(); public bool NamesLooking;
+        public List<ExtInfo> Exts; public bool ExtReading; public DateTime? ExtsAt;
+        public List<Check> MoreChecks; public int? MoreValue; public List<FolderHint> Folders;
+        readonly INetSource netSource; readonly IExtSource extSource;
         DownloadWatcher watcher;
         public event Action<string> Changed;   // "checks", "threats", "leftovers", "scan", "settings"
 
@@ -117,6 +124,8 @@ namespace HallowGuard
             probe = fake ? (ISecurityProbe)new FakeProbe() : new WindowsProbe();
             threatSource = fake ? (IThreatSource)new FakeThreatSource() : new WindowsThreatSource();
             leftoverSource = fake ? (ILeftoverSource)new FakeLeftovers() : new WindowsLeftovers();
+            netSource = fake ? (INetSource)new FakeNet() : new WindowsNet();
+            extSource = fake ? (IExtSource)new FakeExts() : new WindowsExts();
             famEnv = snapMode ? null : GuardSettings.TestDir != null ? FamilyEnv.ForTest(GuardSettings.TestDir) : FamilyEnv.Real();
             Store = GuardSettings.TestDir != null || snapMode ? StartupStore.ForTest(@"Software\HallowGuard\Test-" + (GuardSettings.TestDir == null ? "snap" : Path.GetFileName(GuardSettings.TestDir.TrimEnd('\\')))) : StartupStore.Real();
             if (snapMode) return;
@@ -152,6 +161,7 @@ namespace HallowGuard
         public void LoadSnapData()
         {
             Facts = probe.Read(); Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); CheckedAt = DateTime.Now.AddMinutes(-3);
+            Net = netSource.Read(); Exts = extSource.Read(); ExtsAt = DateTime.Now.AddMinutes(-2);
             SetFamily(FakeFamily.Sample());
             string e; ThreatList = threatSource.Read(out e);
             LeftoverList = leftoverSource.Hunt(null); HuntedAt = DateTime.Now.AddMinutes(-1);
@@ -194,6 +204,7 @@ namespace HallowGuard
         public void RefreshChecks()
         {
             if (Checking) return; Checking = true; Fire("checks");
+            RefreshNetwork(); RefreshExtensions();
             var t = new Thread(() =>
             {
                 SystemFacts f = null; try { f = probe.Read(); } catch (Exception e) { Log("checks failed: " + e.Message); f = new SystemFacts(); }
@@ -226,10 +237,60 @@ namespace HallowGuard
         void Recount()
         {
             AppChecks = Fam == null ? null : FamilyScore.Evaluate(Fam);
-            FamilyValue = ScoreValue < 0 ? -1 : FamilyScore.Combined(ScoreValue, AppChecks);
-            AppsValue = FamilyScore.AppsScore(AppChecks);
+            MoreChecks = Net == null && Exts == null ? null : MoreScore.Evaluate(Net, Exts);
+            FamilyValue = ScoreValue < 0 ? -1 : FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks);
+            AppsValue = FamilyScore.AppsScore(AppChecks); MoreValue = MoreScore.GroupScore(MoreChecks);
+            try
+            {
+                if (SnapMode || GuardSettings.Fake) Folders = FakeExtras.Hints();
+                else if (Facts != null) Folders = Ransom.Suggest(Facts.Cfa, KnownFolders.Current(), Ransom.VaultSaveFolders(Fam == null || Fam.Vault == null ? null : Fam.Vault.Status), Directory.Exists);
+            }
+            catch (Exception e) { Log("folders: " + e.Message); }
         }
-        public List<Check> Todo() { return FamilyScore.Todo((Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>())); }
+        public List<Check> Todo() { return FamilyScore.Todo((Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>()).Concat(MoreChecks ?? new List<Check>())); }
+
+        // ---- v1.2: network view (connection tables, listeners, firewall - read-only, nothing sent out)
+        public void RefreshNetwork()
+        {
+            if (NetReading) return; NetReading = true; Fire("network");
+            new Thread(() =>
+            {
+                NetSnapshot n; var sw = Stopwatch.StartNew();
+                try { n = netSource.Read(); } catch (Exception e) { n = new NetSnapshot { Error = e.Message }; }
+                ui.BeginInvoke(new Action(() => { Net = n; NetReading = false; Log("network " + n.Apps.Count + " apps, " + n.Listeners.Count + " listeners in " + sw.ElapsedMilliseconds + " ms"); Recount(); WriteStatus(); Fire("network"); Fire("checks"); }));
+            }) { IsBackground = true, Name = "network", Priority = ThreadPriority.BelowNormal }.Start();
+        }
+        // reverse DNS for the internet hosts on the Network page - only when you click "Look up names"
+        public void LookUpNames()
+        {
+            if (NamesLooking || Net == null) return;
+            if (GuardSettings.TestDir != null || SnapMode) { Log("look up names (tests never send anything)"); return; }
+            NamesLooking = true; Fire("network");
+            var ips = Net.Apps.SelectMany(a => a.Remotes).ToList();
+            new Thread(() =>
+            {
+                Dictionary<string, string> r; try { r = WindowsNet.LookUpNames(ips); } catch { r = new Dictionary<string, string>(); }
+                ui.BeginInvoke(new Action(() => { foreach (var kv in r) Names[kv.Key] = kv.Value; NamesLooking = false; Say("Looked up " + r.Count + " of " + ips.Distinct().Count() + " names."); Fire("network"); }));
+            }) { IsBackground = true, Name = "names" }.Start();
+        }
+        // ---- v1.2: browser extension risk (manifests and copies of the browsers' settings files - never changed)
+        public void RefreshExtensions()
+        {
+            if (ExtReading) return; ExtReading = true; Fire("extensions");
+            new Thread(() =>
+            {
+                List<ExtInfo> l; var sw = Stopwatch.StartNew();
+                try { l = extSource.Read(); } catch (Exception e) { Log("extensions failed: " + e.Message); l = new List<ExtInfo>(); }
+                ui.BeginInvoke(new Action(() => { Exts = l; ExtsAt = DateTime.Now; ExtReading = false; Log("extensions " + l.Count + " in " + sw.ElapsedMilliseconds + " ms"); Recount(); WriteStatus(); Fire("extensions"); Fire("checks"); }));
+            }) { IsBackground = true, Name = "extensions", Priority = ThreadPriority.BelowNormal }.Start();
+        }
+        public void OpenExtensionsPage(string browser)
+        {
+            if (GuardSettings.TestDir != null || SnapMode) { Log("extensions page " + browser + " (tests never open browsers)"); return; }
+            var exe = ExtScan.BrowserExe(browser);
+            if (exe == null) { Say("Couldn't find " + browser + " - open it and go to " + ExtScan.ExtensionsUrl(browser)); return; }
+            try { Process.Start(exe, ExtScan.ExtensionsUrl(browser)); } catch (Exception e) { Say("Couldn't open " + browser + ": " + e.Message); }
+        }
         public void RefreshThreats()
         {
             if (ThreatsLoading) return; ThreatsLoading = true;
@@ -246,7 +307,7 @@ namespace HallowGuard
             if (string.IsNullOrEmpty(action)) return;
             Log("fix " + action);
             if (action == "scan:quick") { StartScan("quick", null); ShowMain("scan"); return; }
-            if (action == "page:scan") { ShowMain("scan"); return; }
+            if (action.StartsWith("page:")) { ShowMain(action.Substring(5)); return; }
             if (action == "admin:bitlocker") { CheckBitLockerAsAdmin(); return; }
             if (action.StartsWith("app:")) { OpenApp(action.Substring(4)); return; }
             if (GuardSettings.TestDir != null) return;   // tests never open Windows pages
@@ -571,7 +632,11 @@ namespace HallowGuard
                 { "scanning", Scanning }, { "scanKind", Scanning ? Current.Kind : null },
                 { "threats", ThreatList == null || ThreatError != null ? null : (object)ThreatList.Count },
                 { "watchDownloads", S.WatchDownloads }, { "weeklyReminder", S.WeeklyReminder }, { "startsWithWindows", StartsWithWindows() }, { "virusTotalKey", S.VtKey != null },
-                { "lastCrash", Crash.LastTime() == null ? null : Family.Time(Crash.LastTime().Value) } };
+                { "lastCrash", Crash.LastTime() == null ? null : Family.Time(Crash.LastTime().Value) },
+                // v1.2: ransomware protection, programs open to the network, browser extensions (counts only - no names, addresses or paths)
+                { "ransomware", Facts == null || Facts.Cfa == null ? null : Ransom.ModeWord(Facts.Cfa.Mode) }, { "moreScore", MoreValue },
+                { "network", Net == null || Net.Error != null ? null : new Dictionary<string, object> { { "apps", Net.Apps.Count }, { "listeners", Net.Listeners.Count }, { "suspicious", Net.Listeners.Count(l => l.V == Verdict.Suspicious) } } },
+                { "extensions", Exts == null ? null : new Dictionary<string, object> { { "total", Exts.Count }, { "high", Exts.Count(x => x.Risk == "High") }, { "medium", Exts.Count(x => x.Risk == "Medium") }, { "low", Exts.Count(x => x.Risk == "Low") }, { "known", Exts.Count(x => x.Known) } } } };
             if (GuardSettings.TestDir != null) d["test"] = TestState();
             return d;
         }
@@ -589,7 +654,8 @@ namespace HallowGuard
             var t = new Dictionary<string, object> { { "watching", Watching }, { "notifications", Notifications }, { "queue", queue.Count }, { "hunting", Hunting },
                 { "leftovers", LeftoverList == null ? -1 : LeftoverList.Count }, { "lastMessage", LastScanMessage } };
             if (Checks != null) t["checks"] = Checks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
-            if (AppChecks != null) t["appChecks"] = AppChecks.Select(x => x.Id + "=" + (x.NotInstalled ? "missing" : x.State.ToString()) + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
+            if (MoreChecks != null) t["moreChecks"] = MoreChecks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
+            if (AppChecks != null) t["appChecks"] =AppChecks.Select(x => x.Id + "=" + (x.NotInstalled ? "missing" : x.State.ToString()) + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
             if (Checks != null) t["todoIds"] = Todo().Select(x => x.Id).ToArray();
             if (LeftoverList != null) t["verdicts"] = LeftoverList.GroupBy(x => x.Kind + "/" + x.V).Select(g => g.Key + ":" + g.Count()).ToArray();
             if (Current != null) { t["job"] = Current.Kind; t["jobResult"] = Current.Result; t["jobThreats"] = Current.Threats; t["jobTarget"] = Current.Target; }
@@ -650,6 +716,10 @@ namespace HallowGuard
                 case "test-hunt": Hunt(); return "ok";
                 case "test-checks": RefreshChecks(); return "ok";
                 case "test-family": RefreshFamily(); return "ok";
+                case "test-network": RefreshNetwork(); return "ok";
+                case "test-extensions": RefreshExtensions(); return "ok";
+                case "test-names": LookUpNames(); return "ok";
+                case "test-extpage": OpenExtensionsPage(arg); return "ok";
                 case "test-reminder": S.LastReminder = null; S.Save(); CheckReminder(); return "ok " + Notifications;
                 case "test-fix": RunFix(arg); return "ok";
                 case "test-autostart": SetStartWithWindows(arg == "on"); return "ok";

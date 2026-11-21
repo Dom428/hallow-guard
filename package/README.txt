@@ -8,6 +8,21 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.2
+- Ransomware page: whether Windows' Controlled folder access is on, which folders are
+  protected and which apps are allowed, in plain words - with folders worth protecting
+  (Documents, Pictures, Desktop and your game saves) and a warning that it can stop games
+  from saving unless you allow them. Hallow Guard only reads it; the buttons open Windows
+  Security's Ransomware protection page.
+- Network page: which apps are connected right now, which programs are open to the
+  network (with their publisher and whether Windows Firewall lets them in on private /
+  public networks), and unsigned ones running from Temp or AppData flagged as suspicious.
+  Nothing is sent anywhere - names are only looked up when you click "Look up names".
+- Extensions page: every extension in Chrome, Edge, Brave, Opera and Firefox rated High,
+  Medium, Low or Known (Hallow Keys and Hallow Shield), with the reasons. Browsers are
+  never changed.
+- The Overview's score and to-do list include these (lightly).
+
 WHAT'S NEW IN 1.1
 - One family safety score: the Overview also covers your other Hallow apps - Hallow Keys'
   password health (counts only, the vault is never opened), Hallow Vault's backups,

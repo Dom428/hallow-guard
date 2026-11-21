@@ -29,6 +29,7 @@ namespace HallowGuard
         public string BitLocker;                  // "on", "off", "encrypting", "paused", null = unknown
         public bool BitLockerFromAdminCheck;
         public bool? Uac, UacPrompts, SecureBoot, MemoryIntegrity;
+        public CfaFacts Cfa;                      // v1.2: Controlled folder access (null = not read)
         public DateTime Now = DateTime.Now;
     }
 
@@ -132,6 +133,8 @@ namespace HallowGuard
             if (f.MemoryIntegrity == null) r.Add(C("hvci", "Memory integrity", CheckState.Unknown, 0, "Couldn't read the Core isolation setting.", "Open settings", "windowsdefender://coreisolation"));
             else if (f.MemoryIntegrity == true) r.Add(C("hvci", "Memory integrity", CheckState.Good, 0, "On - Core isolation stops malicious drivers from getting into the heart of Windows."));
             else r.Add(C("hvci", "Memory integrity", CheckState.Warn, 4, "Off. Core isolation blocks malicious drivers. (Some older drivers and anti-cheats don't work with it - Windows tells you which.)", "Open settings", "windowsdefender://coreisolation"));
+            // v1.2: ransomware protection (Controlled folder access) - counts lightly
+            r.Add(Ransom.Evaluate(f.Cfa, f.OtherAv));
             return r;
         }
         static DateTime? Newest(DateTime? a, DateTime? b) { if (a == null) return b; if (b == null) return a; return a > b ? a : b; }
@@ -148,7 +151,7 @@ namespace HallowGuard
         {
             var f = new SystemFacts();
             Try(() => Defender(f)); Try(() => SecurityCenter(f)); Try(() => Firewall(f)); Try(() => SmartScreen(f));
-            Try(() => Updates(f)); Try(() => BitLocker(f)); Try(() => Misc(f));
+            Try(() => Updates(f)); Try(() => BitLocker(f)); Try(() => Misc(f)); Try(() => f.Cfa = new WindowsCfa().Read());
             return f;
         }
         static void Try(Action a) { try { a(); } catch { } }
@@ -303,7 +306,7 @@ namespace HallowGuard
                 QuickScan = now.AddDays(-2).AddHours(-3), FullScan = now.AddDays(-23),
                 FwDomain = true, FwPrivate = true, FwPublic = true, SmartScreen = true,
                 LastUpdate = now.AddDays(-9), RebootPending = true, BitLocker = null,
-                Uac = true, UacPrompts = true, SecureBoot = true, MemoryIntegrity = false, Now = now
+                Uac = true, UacPrompts = true, SecureBoot = true, MemoryIntegrity = false, Cfa = FakeExtras.Cfa(), Now = now
             };
         }
     }
