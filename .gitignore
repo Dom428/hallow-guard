@@ -1,0 +1,5 @@
+# build output
+HallowGuard.exe
+tests/GuardTests.exe
+tests/out/
+package/HallowGuard.exe
