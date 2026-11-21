@@ -17,7 +17,7 @@ namespace HallowGuard
         public static Brush R(string key) { return (Brush)Application.Current.FindResource(key); }
         public static Style S(string key) { return (Style)Application.Current.FindResource(key); }
         public static Brush Accent { get { return B(Program.TextAccentHex); } }    // v1.8: in light mode the darkened accent (it's used for text, icons and thin lines)
-        static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64"), lgreen = B(Mode.LightGreen), lamber = B(Mode.LightAmber), lred = B(Mode.LightRed);
+        static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64"), lgreen = B(Mode.LightGreenText), lamber = B(Mode.LightAmberText), lred = B(Mode.LightRed);   // v1.9: light = the status TEXT values (codes, scores, chips)
         // v1.8: the family's light status colours in light mode; Info (blue) and Low (yellow) too
         public static Brush Info { get { return B(Mode.IsLight ? Mode.LightInfo : "#7FB2F0"); } }
         public static Brush Low { get { return B(Mode.IsLight ? Mode.LightLow : "#E8D27A"); } }

@@ -159,15 +159,15 @@ namespace HallowGuard.Tests
             {
                 Mode.IsLight = true; Look.Current = "console"; Hud.Use("console", Accent.Default);
                 Ok(H(Hud.Bg) == "#F6F4FA" && H(Hud.Panel) == "#FFFFFF" && H(Hud.PanelHi) == "#EEEAF5" && H(Hud.Line) == "#DAD3E6", "Hallow console light: background / panel / panel 2 / border from the spec");
-                Ok(H(Hud.Text) == "#1E1A26" && H(Hud.Muted) == "#6B6478" && H(Hud.Lilac) == "#7A5CC0", "Hallow console light: text / muted / lilac from the spec");
-                Ok(H(Hud.Green) == "#1E8E4F" && H(Hud.Amber) == "#A66A00" && H(Hud.Red) == "#C2333F", "Hallow console light: the light status colours");
+                Ok(H(Hud.Text) == "#1E1A26" && H(Hud.Muted) == "#6B6478" && H(Hud.Lilac) == Mode.LilacText, "Hallow console light: text / muted / lilac from the spec (v1.9: lilac darkened for text on #EEEAF5)");
+                Ok(H(Hud.Green) == Mode.LightGreenText && H(Hud.Amber) == Mode.LightAmberText && H(Hud.Red) == "#C2333F", "Hallow console light: the light status colours (v1.9: their text values #1B7A44 / #8F5B00)");
                 Ok(H(Hud.Glow) == Mode.TextAccent(Accent.Default) && Hud.Ratio(Hud.C(Hud.Glow), Hud.C(Hud.Bg)) >= 4.5, "Hallow console light: the glow is the darkened accent (lines and text read)");
                 Ok(Hud.Fx(new System.Windows.Media.Effects.DropShadowEffect()) == null, "Hallow console light: no glow effects");
                 Ok(Hud.Ratio(Hud.C(Hud.Text), Hud.C(Hud.CardTop)) >= 4.5 && Hud.Ratio(Hud.C(Hud.Muted), Hud.C(Hud.CardBottom)) >= 4.5 && Hud.Ratio(Hud.C(Hud.Muted), Hud.C(Hud.Console)) >= 4.5, "Hallow console light: text and muted text on the cards and the console");
                 Hud.Use("console", "#3399FF");
                 Ok(H(Hud.Glow) == Mode.TextAccent("#3399FF"), "Hallow console light: another accent is darkened the same way");
                 Look.Current = "classic";
-                Ok(H(Ui.Green) == "#1E8E4F" && H(Ui.Amber) == "#A66A00" && H(Ui.Red) == "#C2333F" && H(Ui.OnStatus) == "#FFFFFF", "Hallow classic light: the light status colours, white on the badges");
+                Ok(H(Ui.Green) == Mode.LightGreenText && H(Ui.Amber) == Mode.LightAmberText && H(Ui.Red) == "#C2333F" && H(Ui.OnStatus) == "#FFFFFF", "Hallow classic light: the light status colours, white on the badges");
                 Look.Current = "cyberblue"; Hud.Use("cyberblue", Accent.Default);
                 Ok(H(Hud.Bg) == "#070B12" && H(Hud.Glow) == "#22E1FF", "Cyber blue: the dark cyan palette, whatever the mode");
                 Mode.IsLight = false; Look.Current = "console"; Hud.Use("console", Accent.Default);

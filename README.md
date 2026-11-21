@@ -168,6 +168,11 @@ rest as one family - same layout, same motion:
   (`AppsUseLightTheme`) live. Guard only reads theme.json, and changes apply without a restart.
 - **Settings > Look > Light or dark**: *Follow Hallow* (default), *Light* or *Dark* - just for Guard, saved in its own settings.
 - The Windows title bar, the tray menu, scrollbars, menus and tooltips follow the mode.
+- **1.9: light mode readability fixes** - every small text in light mode reads at 4.5:1 or more with any accent: the family
+  accent rule (as Hallow Toolkit 5.16) - accent text darkened against #EEEAF5, filled Accent buttons in the real accent unless
+  neither dark nor white text reaches 4.5:1 on it (violet), then a deeper fill with white text; status codes, scores and chips
+  in the text green #1B7A44 / amber #8F5B00; lilac codes and IDs solid; grey chips with dark text; the open page in Hallow
+  console's list on #EEEAF5.
 
 ## Scans while you're away, weekly reports, what changed (new in 1.3)
 
@@ -242,6 +247,9 @@ prints only timings, check IDs and states.
 
 ## What's new
 
+- **1.9** - Light mode readability fixes: Accent buttons with a violet (or similar) accent get a deeper fill with white text,
+  status codes, scores and chips use the darker text green and amber, lilac codes and IDs are solid and grey chips get dark
+  text - all light text now reads at 4.5:1 or more. Dark mode and Cyber blue are unchanged.
 - **1.8** - Light and dark mode: Hallow console and Hallow classic each get a light version (the family's light palette, the
   accent darkened for text, no glows); Cyber blue stays dark. Follows Hallow Toolkit's *Light / Dark / Same as Windows* switch
   live, or pick Light / Dark just for Guard in Settings > Look. The title bar and tray menu match.

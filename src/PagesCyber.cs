@@ -35,7 +35,7 @@ namespace HallowGuard
         {
             var sp = new StackPanel { Margin = new Thickness(28, 18, 28, 12) };
             string hud; if (!HudTitles.TryGetValue(title, out hud)) hud = title;
-            sp.Children.Add(Hud.M("GUARD://" + title.Split(' ')[0].ToLowerInvariant(), 10.5, Hud.Alpha(Hud.Lilac, 0.9), 2));
+            sp.Children.Add(Hud.M("GUARD://" + title.Split(' ')[0].ToLowerInvariant(), 10.5, Hud.Soft(Hud.Lilac, 0.9), 2));
             sp.Children.Add(Hud.Caps(hud, 23, Hud.Text, 0));
             sp.Children.Add(new Rectangle { Width = 56, Height = 2, Fill = Hud.Glow, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 12), Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 8, ShadowDepth = 0 }) });
             if (sub != null) sp.Children.Add(Ui.Muted(sub, 12.5, 14));
@@ -86,7 +86,7 @@ namespace HallowGuard
             {
                 var id = p.Item1; n++;
                 var ct = new StackPanel { Orientation = Orientation.Horizontal };
-                ct.Children.Add(new TextBlock { Text = n.ToString("00"), FontFamily = Hud.Mono, FontSize = 9.5, Foreground = Hud.Alpha(Hud.Lilac, 0.6), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+                ct.Children.Add(new TextBlock { Text = n.ToString("00"), FontFamily = Hud.Mono, FontSize = 9.5, Foreground = Hud.Soft(Hud.Lilac, 0.6), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
                 var ic = Icons.Make(p.Item3, 14, Hud.Alpha(Hud.Lilac, 0.95)); ic.Margin = new Thickness(0, 0, 11, 0); ic.VerticalAlignment = VerticalAlignment.Center; ct.Children.Add(ic);
                 ct.Children.Add(new TextBlock { Text = Hud.Spaced(p.Item2), FontFamily = Hud.Head, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center });
                 var b = new Button { Style = Ui.S("Nav"), Content = ct, Margin = new Thickness(0, 0, 10, 0) };
@@ -249,7 +249,7 @@ namespace HallowGuard
             var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
             if (num > 0)
             {
-                var nb = new Border { BorderBrush = color, BorderThickness = new Thickness(1), Background = Hud.Alpha(color, 0.12), Width = 28, Height = 22, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Top };
+                var nb = new Border { BorderBrush = color, BorderThickness = new Thickness(1), Background = Hud.Alpha(color, Mode.IsLight ? 0.08 : 0.12), Width = 28, Height = 22, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Top };
                 nb.Child = new TextBlock { Text = num.ToString("00"), FontFamily = Hud.Mono, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = color, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 left.Children.Add(nb);
             }
@@ -281,7 +281,7 @@ namespace HallowGuard
                 var s = new DockPanel { LastChildFill = false };
                 var h = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
                 var ic = Icons.Make(icon, 17, Hud.Glow); ic.Margin = new Thickness(0, 0, 9, 0); DockPanel.SetDock(ic, Dock.Left); h.Children.Add(ic);
-                var cd = Hud.M(code, 9.5, Hud.Alpha(Hud.Lilac, 0.85)); cd.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(cd, Dock.Right); h.Children.Add(cd);
+                var cd = Hud.M(code, 9.5, Hud.Soft(Hud.Lilac, 0.85)); cd.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(cd, Dock.Right); h.Children.Add(cd);
                 h.Children.Add(Ui.T(title, 14.5, true));
                 DockPanel.SetDock(h, Dock.Top); s.Children.Add(h); var tx = Ui.Muted(text, 12, 10); DockPanel.SetDock(tx, Dock.Top); s.Children.Add(tx);
                 btn.HorizontalAlignment = HorizontalAlignment.Left; DockPanel.SetDock(btn, Dock.Bottom); s.Children.Add(btn);
@@ -317,7 +317,7 @@ namespace HallowGuard
             w.Children.Add(Ui.Switch("Watch Downloads - scan each new download as soon as it has finished", c.S.WatchDownloads, v => c.SetWatch(v)));
             var where = Snap.On ? @"C:\Users\Alex\Downloads" : DownloadWatcher.DownloadsFolder();
             w.Children.Add(Ui.Muted("Off by default. Hallow Guard waits until a file stops growing (and skips .crdownload / .part files), then asks Defender to check just that file. You only hear from it if something is found.", 11.5, 4));
-            w.Children.Add(Hud.M("WATCHING  " + where, 10.5, Hud.Alpha(Hud.Lilac, 0.95), 4));
+            w.Children.Add(Hud.M("WATCHING  " + where, 10.5, Hud.Soft(Hud.Lilac, 0.95), 4));
             List<string> wl; lock (c.WatchLog) wl = c.WatchLog.ToList();
             foreach (var l in wl.Take(5)) w.Children.Add(Mono("> " + l, l.Contains("THREAT") ? Hud.Red : Hud.Muted));
             sp.Children.Add(Card(w));
@@ -395,13 +395,13 @@ namespace HallowGuard
                 foreach (var l in lines.Skip(Math.Max(0, lines.Count - 9)))
                 {
                     var tb = new TextBlock { FontFamily = Hud.Mono, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 2) };
-                    tb.Inlines.Add(new System.Windows.Documents.Run("[" + l.Item1.ToString("HH:mm:ss") + "] ") { Foreground = Hud.Alpha(Hud.Muted, 0.9) });
+                    tb.Inlines.Add(new System.Windows.Documents.Run("[" + l.Item1.ToString("HH:mm:ss") + "] ") { Foreground = Hud.Soft(Hud.Muted, 0.9) });
                     tb.Inlines.Add(new System.Windows.Documents.Run(l.Item2.PadRight(9)) { Foreground = l.Item2 == "DEFENDER" ? Hud.Green : Hud.Lilac });
                     tb.Inlines.Add(new System.Windows.Documents.Run("> " + l.Item3) { Foreground = l.Item3.IndexOf("threat", StringComparison.OrdinalIgnoreCase) >= 0 && l.Item3.IndexOf("no threat", StringComparison.OrdinalIgnoreCase) < 0 ? Hud.Red : Hud.Text });
                     con.Children.Add(tb);
                 }
                 var cl = new StackPanel { Orientation = Orientation.Horizontal };
-                cl.Children.Add(new TextBlock { Text = "[" + DateTime.Now.ToString("HH:mm:ss") + "] GUARD    > ", FontFamily = Hud.Mono, FontSize = 11.5, Foreground = Hud.Alpha(Hud.Muted, 0.9) });
+                cl.Children.Add(new TextBlock { Text = "[" + DateTime.Now.ToString("HH:mm:ss") + "] GUARD    > ", FontFamily = Hud.Mono, FontSize = 11.5, Foreground = Hud.Soft(Hud.Muted, 0.9) });
                 cl.Children.Add(cursor); con.Children.Add(cl);
             };
             fill();
@@ -478,7 +478,7 @@ namespace HallowGuard
                 var when = Hud.M(t.When == null ? "----" : t.When.Value.ToString("yyyy-MM-dd HH:mm"), 11, Hud.Muted); when.VerticalAlignment = VerticalAlignment.Center; when.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(when, Dock.Right); h.Children.Add(when);
                 var nm = OneLine(Ui.T(t.Kind + "  -  " + t.Name, 13.5, true)); nm.VerticalAlignment = VerticalAlignment.Center; h.Children.Add(nm);
                 s.Children.Add(h);
-                s.Children.Add(Hud.M("THREAT-ID 0x" + t.Id.ToString("X8") + "   CAT " + t.Category.ToString("00") + "   STATUS " + t.StatusId.ToString("00"), 10.5, Hud.Alpha(Hud.Lilac, 0.95), 5));
+                s.Children.Add(Hud.M("THREAT-ID 0x" + t.Id.ToString("X8") + "   CAT " + t.Category.ToString("00") + "   STATUS " + t.StatusId.ToString("00"), 10.5, Hud.Soft(Hud.Lilac, 0.95), 5));
                 s.Children.Add(Ui.T(t.What, 12.5, false, null, 4));
                 bool bad = ThreatOpen(t);
                 var act = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
@@ -516,7 +516,7 @@ namespace HallowGuard
             var id = tracked ? Snapshots.IdOf(l) : null;
             bool isNew = tracked && c.NewIds.Contains(id);
             if (isNew) { var nc = Hud.Tag("New since last week", Ui.Accent); DockPanel.SetDock(nc, Dock.Left); h.Children.Add(nc); }
-            if (id != null) { var it = Hud.M("ID " + (id.Length > 12 ? id.Substring(id.Length - 12) : id), 10.5, Hud.Alpha(Hud.Lilac, 0.9)); it.VerticalAlignment = VerticalAlignment.Center; it.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(it, Dock.Right); h.Children.Add(it); }
+            if (id != null) { var it = Hud.M("ID " + (id.Length > 12 ? id.Substring(id.Length - 12) : id), 10.5, Hud.Soft(Hud.Lilac, 0.9)); it.VerticalAlignment = VerticalAlignment.Center; it.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(it, Dock.Right); h.Children.Add(it); }
             var nm = OneLine(Ui.T(l.Name, 13.5, true)); nm.VerticalAlignment = VerticalAlignment.Center; h.Children.Add(nm);
             s.Children.Add(h);
             s.Children.Add(Ui.Muted(l.Reason, 12.5, 2));
@@ -633,7 +633,7 @@ namespace HallowGuard
             s.Children.Add(mrow);
             s.Children.Add(Ui.Muted("Now " + (Mode.IsLight ? "light" : "dark") + " (" + (Snap.On ? "picture" : Mode.Why(Look.Current, c.S.Mode, Accent.ReadMode())) + "). Follow Hallow uses the Light / Dark / Same as Windows switch in Hallow Toolkit's settings. Hallow console and Hallow classic come in light and dark; Cyber blue is always dark.", 11.5, 8));
             s.Children.Add(Ui.Muted("Hallow console is a security-console look in the Hallow colours: a radar score, a live scan console and a connection map, glowing in your Hallow accent. Hallow classic is the look from 1.3. Cyber blue is the console in the 1.4 neon cyan. Animations only run while this window is open and in front - they stop while it's minimized or in the tray, while a game or full-screen app runs, and when Windows' \"Show animations\" is off. Nothing else changes.", 11.5, Look.IsHud ? 4 : 0));
-            if (Look.IsHud) s.Children.Add(Hud.M("ANIMATIONS: " + (Snap.On ? "RUN WHILE THE WINDOW IS IN FRONT" : Anim.Running ? "RUNNING" : "PAUSED (" + (Anim.Why ?? "-").ToUpperInvariant() + ")"), 10.5, Hud.Alpha(Hud.Lilac, 0.95)));
+            if (Look.IsHud) s.Children.Add(Hud.M("ANIMATIONS: " + (Snap.On ? "RUN WHILE THE WINDOW IS IN FRONT" : Anim.Running ? "RUNNING" : "PAUSED (" + (Anim.Why ?? "-").ToUpperInvariant() + ")"), 10.5, Hud.Soft(Hud.Lilac, 0.95)));
             return Card(s);
         }
     }

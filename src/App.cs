@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.8.0.0")]
-[assembly: AssemblyFileVersion("1.8.0.0")]
+[assembly: AssemblyVersion("1.9.0.0")]
+[assembly: AssemblyFileVersion("1.9.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.8";
+        public const string Version = "1.9";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -69,7 +69,7 @@ namespace HallowGuard
             Hud.Use(HallowGuard.Look.Current, AccentHex);
             app.Resources.MergedDictionaries.Clear();
             var classic = Res("HallowGuard.Theme.xaml");
-            if (Mode.IsLight) classic = Mode.LightClassic(classic, TextAccentHex);
+            if (Mode.IsLight) classic = Mode.LightClassic(classic, TextAccentHex, AccentHex);
             app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(classic, AccentHex)));
             if (HallowGuard.Look.IsCyberBlue) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Res("HallowGuard.ThemeCyber.xaml")));
             else if (HallowGuard.Look.IsHud) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(ConsoleTheme(Mode.IsLight ? AccentHex : Hud.GlowHex)));
@@ -79,7 +79,7 @@ namespace HallowGuard
         public static string ConsoleTheme(string accent)
         {
             var x = Res("HallowGuard.ThemeConsole.xaml");
-            if (Mode.IsLight) x = Mode.LightConsole(x, Mode.TextAccent(accent));
+            if (Mode.IsLight) x = Mode.LightConsole(x, Mode.TextAccent(accent), accent);
             return Accent.ApplyTo(x, accent);
         }
         static string Res(string name) { using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) using (var r = new StreamReader(s)) return r.ReadToEnd(); }

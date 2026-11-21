@@ -134,7 +134,8 @@ namespace HallowGuard
             {
                 // v1.8: Hallow console in light - the family light palette; the accent darkened for lines and text (>= 4.5:1), no glows
                 Bg = B(Mode.LightBg); Panel = B(Mode.LightPanel); PanelHi = B(Mode.LightPanel2); Line = B(Mode.LightLine); LineDim = B("#E6E0EF");
-                Text = B(Mode.LightText); Muted = B(Mode.LightMuted); Lilac = B(Mode.LightLilac); Green = B(Mode.LightGreen); Amber = B(Mode.LightAmber); Red = B(Mode.LightRed); Info = B(Mode.LightLilac); Low = B(Mode.LightLow);
+                // v1.9: lilac and the status colours are often small text (codes, scores, tags): their text values
+                Text = B(Mode.LightText); Muted = B(Mode.LightMuted); Lilac = B(Mode.LilacText); Green = B(Mode.LightGreenText); Amber = B(Mode.LightAmberText); Red = B(Mode.LightRed); Info = B(Mode.LilacText); Low = B(Mode.LightLow);
                 Console = B("#FBFAFD"); Dim = B("#E2DCEC"); Side = B("#FFFFFF"); Well = B("#F3F0F8");
                 cardTop = Hex("#FFFFFF"); cardBottom = Hex("#FCFBFE"); discIn = Hex("#FFFFFF"); discMid = Hex("#F8F6FB"); discOut = Hex("#EEEAF5");
                 GlowHex = Mode.TextAccent(Valid(accent) ? accent.ToUpperInvariant() : Accent.Default);
@@ -156,6 +157,8 @@ namespace HallowGuard
         }
         // a glow, or none in light mode (the family spec: no glows on light - the accent line/border it sits on stays)
         public static Effect Fx(Effect e) { return Mode.IsLight ? null : e; }
+        // v1.9: see-through TEXT (codes, IDs, labels) in dark; solid in light, where a see-through colour drops under 4.5:1
+        public static SolidColorBrush Soft(Brush b, double a) { return Mode.IsLight && !Look.IsCyberBlue ? Alpha(b, 1) : Alpha(b, a); }
         // the card gradient's ends (as solid colours, for the contrast test)
         public static Brush CardTop { get { return B("#" + cardTop.R.ToString("X2") + cardTop.G.ToString("X2") + cardTop.B.ToString("X2")); } }
         public static Brush CardBottom { get { return B("#" + cardBottom.R.ToString("X2") + cardBottom.G.ToString("X2") + cardBottom.B.ToString("X2")); } }
@@ -179,6 +182,7 @@ namespace HallowGuard
         public static readonly FontFamily Head = new FontFamily("Bahnschrift, Segoe UI Variable Display, Segoe UI");
         public static readonly FontFamily Body = new FontFamily("Segoe UI Variable Text, Segoe UI");
         public static Color C(Brush b) { var s = b as SolidColorBrush; return s == null ? Colors.White : s.Color; }
+        public static string HexOf(Brush b) { var c = C(b); return "#" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2"); }
         public static SolidColorBrush Alpha(Brush b, double a) { var c = C(b); var r = new SolidColorBrush(Color.FromArgb((byte)(a * 255), c.R, c.G, c.B)); r.Freeze(); return r; }
 
         // letter-spaced capitals for headings (WPF has no letter spacing: hair spaces between the letters; the screen reader name
@@ -413,7 +417,7 @@ namespace HallowGuard
                 Number = new TextBlock { Text = score < 0 ? "--" : score.ToString(), FontFamily = Head, FontSize = size * 0.25, FontWeight = FontWeights.SemiBold, Foreground = on, HorizontalAlignment = HorizontalAlignment.Center };
                 mid.Children.Add(Number);
                 mid.Children.Add(new TextBlock { Text = "/100", FontFamily = Mono, FontSize = 11, Foreground = Muted, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, -4, 0, 2) });
-                mid.Children.Add(new TextBlock { Text = Spaced("integrity"), FontFamily = Head, FontSize = 9.5, Foreground = Alpha(Lilac, 0.95), HorizontalAlignment = HorizontalAlignment.Center });
+                mid.Children.Add(new TextBlock { Text = Spaced("integrity"), FontFamily = Head, FontSize = 9.5, Foreground = Soft(Lilac, 0.95), HorizontalAlignment = HorizontalAlignment.Center });
                 Canvas.SetTop(mid, cy - size * 0.21); c.Children.Add(mid);
                 c.SnapsToDevicePixels = false;
                 AutomationProperties.SetName(c, score < 0 ? "Checking" : "Safety score " + score + " of 100, " + Status(score).ToLowerInvariant());

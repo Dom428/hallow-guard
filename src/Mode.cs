@@ -129,21 +129,50 @@ namespace HallowGuard
             else { var q = l < 0.5 ? l * (1 + s) : l + s - l * s; var p = 2 * l - q; r = f(p, q, h + 1 / 3.0); g = f(p, q, h); b = f(p, q, h - 1 / 3.0); }
             return Color.FromRgb((byte)Math.Round(r * 255), (byte)Math.Round(g * 255), (byte)Math.Round(b * 255));
         }
-        // the accent for TEXT and thin lines on the light backgrounds: darkened in HSL until it reads at 4.5:1 on white AND on the
-        // light page background (#F6F4FA) - the default orange becomes about #B5540C. An accent that already reads well is kept.
-        public static string TextAccent(string accent)
+        // ---- v1.9: the family accent rule, exactly as Hallow Toolkit 5.16 (HallowFamily.ps1 Get-LightTextAccent / Get-AccentFillText /
+        // Get-LightAccentFill): darken = System.Drawing's HSL (GetHue / GetSaturation / GetBrightness), L lowered 0.01 a step (H and S kept),
+        // standard HSL -> RGB with Math.Round, the first colour that reaches the contrast.
+        public static string Darken(string accent, double min, string on)
         {
-            Color c; try { c = Hex(accent); } catch { c = Hex(Accent.Default); }
-            double h, s, l; ToHsl(c, out h, out s, out l);
-            var x = c;
-            while ((Hud.Ratio(x, Colors.White) < 4.5 || Hud.Ratio(x, Hex(LightBg)) < 4.5) && l > 0) { l = Math.Max(0, l - 0.005); x = FromHsl(h, s, l); }
-            return ToHex(x);
+            Color a; try { a = Hex(accent); } catch { a = Hex(Accent.Default); }
+            var bg = Hex(on);
+            if (Hud.Ratio(a, bg) >= min) return ToHex(a);
+            var d = global::System.Drawing.Color.FromArgb(a.R, a.G, a.B);
+            double h = d.GetHue() / 360.0, s = d.GetSaturation(), l = d.GetBrightness();
+            var c = a;
+            while (l > 0)
+            {
+                l = Math.Max(0.0, l - 0.01); c = FromHsl(h, s, l);
+                if (Hud.Ratio(c, bg) >= min) break;
+            }
+            return ToHex(c);
         }
+        // text on a filled accent: whichever of the family's dark text / white reads better
+        public static string FillText(string fill)
+        {
+            Color f; try { f = Hex(fill); } catch { f = Hex(Accent.Default); }
+            return Hud.Ratio(f, Hex(LightText)) >= Hud.Ratio(f, Colors.White) ? LightText : "#FFFFFF";
+        }
+        // the light FILL for accent buttons / checked chips: the real accent, unless neither text colour reaches 4.5:1 on it (violet
+        // #8B5CF6) - then the accent darkened until white reads on it
+        public static string LightFill(string accent)
+        {
+            string a; try { a = ToHex(Hex(accent)); } catch { a = Accent.Default; }
+            return Mode.Ratio(a, FillText(a)) >= 4.5 ? a : Darken(a, 4.5, "#FFFFFF");
+        }
+        // the accent for TEXT and thin lines on the light backgrounds: darkened until it reads at 4.5:1 on Panel 2 / hover #EEEAF5 (the
+        // darkest light surface it sits on - so it also reads on #F6F4FA and #FFFFFF). The default orange becomes about #B3540E.
+        public static string TextAccent(string accent) { return Darken(accent, 4.5, LightPanel2); }
+        // the lilac for small text (nav numbers, codes, IDs): it also sits on the hover / open-page #EEEAF5
+        public static readonly string LilacText = Darken(LightLilac, 4.5, LightPanel2);
 
         // ---- the light palette (the family spec)
         public const string LightBg = "#F6F4FA", LightPanel = "#FFFFFF", LightPanel2 = "#EEEAF5", LightLine = "#DAD3E6", LightText = "#1E1A26",
             LightMuted = "#6B6478", LightLilac = "#7A5CC0", LightGreen = "#1E8E4F", LightAmber = "#A66A00", LightRed = "#C2333F",
             LightInfo = "#2F65A8", LightLow = "#8A6A00", LightNav = "#3A3448", LightHoverLine = "#B9AED0";
+        // v1.9: the status colours as small TEXT (the icon values #1E8E4F / #A66A00 are under 4.5:1 on white). Guard shows its status
+        // codes, scores and chips as text, so light mode uses these for the status colours everywhere (they read as icons too).
+        public const string LightGreenText = "#1B7A44", LightAmberText = "#8F5B00";
 
         // Hallow classic's dictionary (Theme.xaml) in light: dark value -> light value. The accent's TEXT uses (caret, focus border)
         // become the darkened accent first; its FILLS (Accent button, checked chip, progress) keep the real accent with dark text.
@@ -159,8 +188,29 @@ namespace HallowGuard
             { "#1B3326", "#DDF1E5" }, { "#6ED28C", LightGreen }, { "#120E18", LightPanel }, { "#6E5A96", LightHoverLine }, { "#A98BE0", LightLilac },
             { "#D6D0E2", LightNav } };
 
-        public static string LightClassic(string xaml, string textAccent) { return Swap(xaml, classicMap, textAccent); }
-        public static string LightConsole(string xaml, string textAccent) { return Swap(xaml, consoleMap, textAccent); }
+        // v1.9: accent = the real accent (theme.json), for the filled Accent button / checked chip (Mode.LightFill + Mode.FillText);
+        // null = Guard's own orange
+        public static string LightClassic(string xaml, string textAccent, string accent = null)
+        {
+            var fill = LightFill(accent ?? Accent.Default);
+            // the Accent button and the checked filter chip: the light fill with its text (written after the swaps below, as markers)
+            xaml = xaml.Replace("<Setter Property=\"Background\" Value=\"#F07820\"/>", "<Setter Property=\"Background\" Value=\"{FILL}\"/>")
+                       .Replace("<SolidColorBrush x:Key=\"CheckedBg\" Color=\"#F07820\"/>", "<SolidColorBrush x:Key=\"CheckedBg\" Color=\"{FILL}\"/>")
+                       .Replace("<Setter Property=\"Foreground\" Value=\"#1A0E04\"/>", "<Setter Property=\"Foreground\" Value=\"{FILLTEXT}\"/>");
+            return Swap(xaml, classicMap, textAccent).Replace("{FILL}", fill).Replace("{FILLTEXT}", FillText(fill));
+        }
+        public static string LightConsole(string xaml, string textAccent, string accent = null)
+        {
+            var fill = LightFill(accent ?? Accent.Default);
+            // the Accent button: in dark a see-through accent wash with accent text; in light the family's filled accent button
+            xaml = xaml.Replace("<GradientStop Color=\"#47F07820\" Offset=\"0\"/><GradientStop Color=\"#24F07820\" Offset=\"1\"/>", "<GradientStop Color=\"{FILL}\" Offset=\"0\"/><GradientStop Color=\"{FILL}\" Offset=\"1\"/>")
+                       .Replace("<Setter Property=\"Foreground\" Value=\"#F59A50\"/>", "<Setter Property=\"Foreground\" Value=\"{FILLTEXT}\"/>")
+                       // the open page in the list: the hover colour (+ the accent bar) instead of an accent wash, so its lilac number and text read
+                       .Replace("<GradientStop Color=\"#33F07820\" Offset=\"0\"/><GradientStop Color=\"#00F07820\" Offset=\"1\"/>", "<GradientStop Color=\"{PANEL2}\" Offset=\"0\"/><GradientStop Color=\"#00{PANEL2HEX}\" Offset=\"1\"/>")
+                       // the switch's ON word is small text: the status-text green on its light green track
+                       .Replace("<Setter TargetName=\"word\" Property=\"Foreground\" Value=\"#6ED28C\"/>", "<Setter TargetName=\"word\" Property=\"Foreground\" Value=\"{GREENTEXT}\"/>");
+            return Swap(xaml, consoleMap, textAccent).Replace("{FILL}", fill).Replace("{FILLTEXT}", FillText(fill)).Replace("{PANEL2}", LightPanel2).Replace("{PANEL2HEX}", LightPanel2.Substring(1)).Replace("{GREENTEXT}", LightGreenText);
+        }
         static string Swap(string xaml, string[,] map, string ta)
         {
             // the accent where it is text or a thin line -> the darkened accent (before Accent.ApplyTo swaps the rest for the real accent)

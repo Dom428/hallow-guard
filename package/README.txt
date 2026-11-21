@@ -8,6 +8,13 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.9
+- Light mode readability fixes: in light mode all small text now reads at 4.5:1 or
+  better with any Hallow accent. Accent buttons with a violet (or similar) accent get a
+  deeper fill with white text, status codes, scores and chips use the darker green and
+  amber, lilac codes and IDs are solid, and grey chips get dark text. Dark mode and
+  Cyber blue are unchanged.
+
 WHAT'S NEW IN 1.8
 - Light and dark mode. Hallow console and Hallow classic now come in a light version too.
   By default Guard follows the Hallow switch in Hallow Toolkit's settings (Light / Dark /

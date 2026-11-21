@@ -140,7 +140,8 @@ namespace HallowGuard
         {
             if (Look.IsHud) return Hud.Tag(text, color);
             var b = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 2, 8, 2), Background = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            b.Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Ui.OnStatus };
+            // v1.9: light = dark or white text, whichever reads better on the chip (a grey "Line" chip gets dark text)
+            b.Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Mode.IsLight ? Ui.B(Mode.FillText(Hud.HexOf(color))) : Ui.OnStatus };
             return b;
         }
         static Brush StateBrush(CheckState s) { return s == CheckState.Good ? Ui.Green : s == CheckState.Warn ? Ui.Amber : s == CheckState.Bad ? Ui.Red : s == CheckState.Info ? Ui.Info : Ui.R("Muted"); }
@@ -280,7 +281,7 @@ namespace HallowGuard
             var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
             if (ch.Group == HardScore.Group) { var code = new TextBlock { Text = Hud.Code(ch.State), FontFamily = new FontFamily("Consolas"), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = StateBrush(ch.State), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }; head.Children.Add(code); }   // v1.6: a status code, never colour alone
             head.Children.Add(Ui.T(ch.Title, 13.5, true));
-            if (ch.NotInstalled) { var chip = Chip("Not installed", Ui.R("Line")); ((TextBlock)((Border)chip).Child).Foreground = Ui.R("Muted"); chip.Margin = new Thickness(10, 0, 0, 0); head.Children.Add(chip); }
+            if (ch.NotInstalled) { var chip = Chip("Not installed", Ui.R("Line")); if (Look.IsHud || !Mode.IsLight) ((TextBlock)((Border)chip).Child).Foreground = Ui.R("Muted"); chip.Margin = new Thickness(10, 0, 0, 0); head.Children.Add(chip); }
             txt.Children.Add(head);
             txt.Children.Add(Ui.Muted(ch.NotInstalled && ch.Line.StartsWith("Not installed. ") ? ch.Line.Substring(15) : ch.Line, 12.5));
             row.Children.Add(txt);
