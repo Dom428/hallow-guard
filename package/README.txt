@@ -8,6 +8,9 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.5
+- New app icon: a blue shield with a check, in the Hallow family style.
+
 WHAT'S NEW IN 1.4
 - A new "cyber" look: a security-console design with a radar safety score, status rows
   with [OK] / [WARN] / [RISK] codes, a live scan console with a timer, threat tags, a

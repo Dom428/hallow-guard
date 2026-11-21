@@ -187,6 +187,8 @@ that records the balloon - the scan while you're away is never started for real 
 
 ## What's new
 
+- **1.5** - New app icon: a blue-to-purple shield with a check, in the Hallow family style (Hallow Shield, the browser
+  extension, has the orange shield with a "blocked" mark). Nothing else changed.
 - **1.4** - the cyber look: a security-console design with a radar score ring, `[OK]` / `[WARN]` / `[RISK]` status rows,
   a live scan console with timer and scanning beam, threat tags, a network connection map and a telemetry sidebar. Calm and
   cheap: animations only while the window is in front, never during a game or full-screen app, and not when Windows'
