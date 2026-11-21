@@ -29,10 +29,11 @@ namespace HallowGuard.Tests
             if (args.Length > 0 && (args[0] == "-Scan" || args[0] == "-Cancel")) return FakeMpCmdRun(args);
             if (args.Contains("--real-smoke")) return RealSmoke();
             if (args.Contains("--real-timing")) return V12Tests.RealTiming();
+            if (args.Contains("--real-hardening")) return V16Tests.RealTiming();
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); V16Tests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }
@@ -365,11 +366,14 @@ namespace HallowGuard.Tests
                 Ok(st != null && (bool)st["running"] && !(bool)st["scanning"] && !(bool)st["watchDownloads"] && (bool)st["weeklyReminder"] && st.ContainsKey("lastScan") && st.ContainsKey("lastCrash"), "status: running, not scanning, Watch Downloads off, reminder on by default");
                 Ok(File.Exists(Path.Combine(dir, "status.json")) && File.ReadAllText(Path.Combine(dir, "status.json")).Contains("\"app\":\"Guard\""), "status.json written in the data folder");
                 // v1.1: the family score next to the old fields (Hub reads "score" - unchanged: the Windows score)
-                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("familyScore") && st["familyScore"] != null && st["moreScore"] != null && st["network"] != null && st["extensions"] != null) break; Thread.Sleep(200); }
+                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("familyScore") && st["familyScore"] != null && st["moreScore"] != null && st["network"] != null && st["extensions"] != null && st.ContainsKey("hardeningScore") && st["hardeningScore"] != null) break; Thread.Sleep(200); }
                 int win = Convert.ToInt32(st["score"]); int more = MoreScore.Penalty(MoreScore.Evaluate(FakeExtras.Network(), FakeExtras.Extensions()));
-                Ok(st["familyScore"] != null && Convert.ToInt32(st["familyScore"]) == win - 9 - more && more == 10 && Convert.ToInt32(st["windowsScore"]) == win && Convert.ToInt32(st["appsScore"]) == 91, "status: familyScore = Windows score - 9 (Keys: 2 reused, 1 weak) - 10 (Network & browsers, capped), windowsScore = score, appsScore 91 (" + st["familyScore"] + ")");
+                // v1.6: the Hardening group comes off too (capped at 10)
+                var hardChecks = HardScore.Evaluate(FakeHardening.Sample(), FakeProbe.Sample()); int hard = HardScore.Penalty(hardChecks);
+                Ok(Convert.ToInt32(st["hardeningScore"]) == HardScore.GroupScore(hardChecks) && hard == HardScore.Cap, "status: hardeningScore (" + st["hardeningScore"] + ") and its points capped at " + HardScore.Cap);
+                Ok(st["familyScore"] != null && Convert.ToInt32(st["familyScore"]) == win - 9 - more - hard && more == 10 && Convert.ToInt32(st["windowsScore"]) == win && Convert.ToInt32(st["appsScore"]) == 91, "status: familyScore = Windows score - 9 (Keys: 2 reused, 1 weak) - 10 (Network & browsers, capped), windowsScore = score, appsScore 91 (" + st["familyScore"] + ")");
                 var fam = st["family"] as Dictionary<string, object>;
-                Ok(fam != null && (string)fam["keys"] == "warn" && (string)fam["vault"] == "missing" && (string)fam["assist"] == "missing" && (string)fam["shield"] == "missing" && st["todo"] != null && (string)st["familyLabel"] == Score.Label(win - 9 - more), "status: family states (keys warn, the rest missing), familyLabel and a to-do count");
+                Ok(fam != null && (string)fam["keys"] == "warn" && (string)fam["vault"] == "missing" && (string)fam["assist"] == "missing" && (string)fam["shield"] == "missing" && st["todo"] != null && (string)st["familyLabel"] == Score.Label(win - 9 - more - hard), "status: family states (keys warn, the rest missing), familyLabel and a to-do count");
                 // v1.2: ransomware, network and extension counts in status (counts only), the new group in the test state
                 var net = st["network"] as Dictionary<string, object>; var ext = st["extensions"] as Dictionary<string, object>;
                 Ok((string)st["ransomware"] == "off" && net != null && Convert.ToInt32(net["suspicious"]) == 1 && Convert.ToInt32(net["listeners"]) == 5 && ext != null && Convert.ToInt32(ext["high"]) == 2 && Convert.ToInt32(ext["known"]) == 2 && Convert.ToInt32(st["moreScore"]) == 88, "status (1.2): ransomware off, 1 suspicious of 5 listeners, 2 high-risk / 2 known extensions, moreScore 88");
@@ -386,11 +390,12 @@ namespace HallowGuard.Tests
                     if (!st.ContainsKey(k)) Ok(false, "status: 1.0 field kept: " + k);
                 Ok(new[] { "app", "version", "score", "scoreLabel", "threats", "lastCrash" }.All(st.ContainsKey) && (string)st["scoreLabel"] == Score.Label(win), "status: every 1.0 field is still there (backward compatible for Hub)");
                 var tst = (Dictionary<string, object>)st["test"];
+                Ok(tst.ContainsKey("hardChecks") && ((System.Collections.IEnumerable)tst["hardChecks"]).Cast<object>().Select(x => x.ToString()).Contains("exclusions=Bad -4") && ((System.Collections.IEnumerable)tst["todoIds"]).Cast<object>().Select(x => x.ToString()).Contains("exclusions"), "test copy: the hardening checks are read (fake data) and risky exclusions are on the to-do list");
                 Ok(((System.Collections.IEnumerable)tst["appChecks"]).Cast<object>().Select(x => x.ToString()).Contains("keys=Warn -9") && ((System.Collections.IEnumerable)tst["todoIds"]).Cast<object>().Select(x => x.ToString()).Contains("keys"), "test copy: Keys counts in the app checks and on the to-do list");
                 File.WriteAllText(Path.Combine(dir, @"HallowKeys\status.json"), "{\"app\":\"Keys\",\"version\":\"2.8\",\"locked\":true,\"health\":{\"logins\":30,\"weak\":0,\"reused\":0,\"leaked\":0,\"breached\":0,\"missing2fa\":0,\"old\":0,\"score\":100,\"when\":\"" + Family.Time(DateTime.Now) + "\"}}");
                 Ok(send("test-family") == "ok", "family re-read on request");
-                for (int i = 0; i < 50; i++) { st = status(); if (Convert.ToInt32(st["familyScore"]) == win - more) break; Thread.Sleep(200); }
-                Ok(Convert.ToInt32(st["familyScore"]) == win - more && Convert.ToInt32(st["appsScore"]) == 100, "Keys healthy again: family score = Windows score minus the Network & browsers points");
+                for (int i = 0; i < 50; i++) { st = status(); if (Convert.ToInt32(st["familyScore"]) == win - more - hard) break; Thread.Sleep(200); }
+                Ok(Convert.ToInt32(st["familyScore"]) == win - more - hard && Convert.ToInt32(st["appsScore"]) == 100, "Keys healthy again: family score = Windows score minus the Network & browsers and Hardening points");
                 Ok(send("test-fix app:Keys") == "ok" && send("test-fix url:https://example.com/") == "ok", "app / url buttons in the test copy: nothing is started or opened");
                 var m = send("menu"); Ok(m != null && m.Contains("\"id\":\"quick\"") && m.Contains("\"label\":\"Quick scan\"") && m.Contains("\"id\":\"watch\""), "menu: Quick scan, Check my PC, Watch Downloads");
                 Ok(send("nonsense") == "error unknown command", "unknown command -> error");

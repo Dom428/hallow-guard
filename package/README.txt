@@ -8,6 +8,17 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.6
+- A new Hardening page: read-only checks of the settings that make Windows harder to
+  attack - Microsoft Defender's settings (unwanted apps, cloud protection, sample
+  submission, network protection, attack surface rules), Defender's exclusions (risky
+  ones flagged; "Check (admin)" when Windows hides them), Remote Desktop and remote-
+  access apps, old features (SMBv1, PowerShell 2.0, AutoPlay), accounts and Wi-Fi.
+- Each check has a plain-English line and a status code. Buttons only open the right
+  Windows page or show the steps - Hallow Guard never changes these settings, and it
+  never reads Wi-Fi passwords.
+- They count lightly in the family score (at most 10 points) and show on the to-do list.
+
 WHAT'S NEW IN 1.5
 - New app icon: a blue shield with a check, in the Hallow family style.
 

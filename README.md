@@ -90,6 +90,35 @@ never disables, replaces or weakens Defender.
   the to-do list. `status.json` adds `ransomware`, `moreScore`, `network` and `extensions` - counts only, never names,
   paths or addresses.
 
+## Hardening checks (new in 1.6)
+
+![Hardening: Defender settings and exclusions, remote access, old features, accounts and Wi-Fi (made-up data)](docs/hardening.png)
+
+A **Hardening** page (in both looks) with read-only checks of the settings that make Windows harder to attack. Each one has
+a plain-English line and a status code (`[OK]` / `[WARN]` / `[RISK]` / `[INFO]`). Buttons only open the right Windows
+Security / Settings page, open Windows features, or show the steps - Hallow Guard never changes these settings.
+
+- **Microsoft Defender settings** (MSFT_MpPreference): potentially unwanted app (PUA) blocking, cloud-delivered protection,
+  automatic sample submission, network protection, and how many Attack Surface Reduction rules block / only watch. With
+  another antivirus in charge these are one `[INFO]` line.
+- **Defender exclusions**: every excluded path, file type and process. Malware often adds exclusions, so broad ones (a whole
+  drive, %TEMP%, AppData, Downloads, your user folder, `.exe` / `.ps1`, wildcards) and ones that point inside Temp or at an
+  unsigned program are a `[RISK]`. Windows only shows the lists to administrators: then **Check (admin)** reads them through
+  UAC (like the BitLocker check - it only reads, into `exclusions.json` in Guard's data folder, trusted for 7 days).
+- **Remote access**: Remote Desktop on/off and Network Level Authentication; remote-access apps (AnyDesk, TeamViewer,
+  RustDesk, Chrome Remote Desktop, Splashtop, Parsec, ScreenConnect, LogMeIn, UltraViewer, VNC servers and more) installed or
+  running, and whether they start with Windows or as an auto-start service (reachable unattended). Hallow Assist's unattended
+  access stays in its own family check and is referenced here.
+- **Old or risky features**: SMBv1 (Windows features, falling back to the registry), the PowerShell 2.0 engine, AutoPlay for
+  USB drives (AutoRun never runs programs from USB on current Windows).
+- **Accounts**: local accounts Windows marks as not needing a password, Guest on, more than one administrator in use, and you
+  as administrator with UAC on "never notify".
+- **Wi-Fi**: saved networks that are open and connect by themselves, and the security type of the network you're on. netsh is
+  only asked `wlan show profiles`, `wlan show profile name=...` and `wlan show interfaces` - **never `key=clear`**, so Wi-Fi
+  passwords are never read, shown or logged (a guard refuses any `key=` argument).
+- They form the **Hardening** group: its own score, at most 10 points off the family score (lightly: 1-4 points per item),
+  and the to-do list. `status.json` adds `hardeningScore` only.
+
 ## The cyber look (new in 1.4)
 
 ![Scan: a live console of what Defender's scanner says (made-up data)](docs/scan.png)
@@ -152,9 +181,10 @@ never disables, replaces or weakens Defender.
 
 ## What it won't do (on purpose)
 
-- It never switches Defender off or changes its settings, and never changes a security setting by itself. The one
-  admin action - reading whether BitLocker is on when Windows only tells administrators - runs only when you click
-  "Check (admin)", and Windows asks you first.
+- It never switches Defender off or changes its settings, and never changes a security setting by itself. The two
+  admin actions - reading whether BitLocker is on, and reading Defender's exclusions, when Windows only tells
+  administrators - run only when you click "Check (admin)", Windows asks you first, and they only read.
+- It never reads Wi-Fi passwords (netsh is never asked with `key=clear`).
 - It never deletes files. Defender decides what happens to threats; you manage them in Windows Security.
 - It never opens your Hallow Keys vault, never changes a browser file and never starts a Hallow app unless you click its button.
 - It never uploads files anywhere. Nothing leaves the PC except a file's fingerprint to VirusTotal, when you ask, with your key.
@@ -184,9 +214,19 @@ profiles with manifests and Preferences (and check the browser files are byte-fo
 The 1.3 tests use a fake clock, fake idle time, power and "game running", the stand-in `MpCmdRun` (which reports the
 priority it was given), fake leftovers / listeners / last week's snapshot and report, and a fake Hallow Hub on the test pipe
 that records the balloon - the scan while you're away is never started for real in a test.
+The 1.6 tests use a fake MSFT_MpPreference, a fake registry (Remote Desktop, services, uninstall entries, Run keys,
+AutoPlay, SMBv1), fake netsh output (and check that no netsh call ever contains `key=clear`), fake accounts, a fake process
+list and fake Windows features. `tests\GuardTests.exe --real-hardening` runs the real read-only hardening checks once and
+prints only timings, check IDs and states.
 
 ## What's new
 
+- **1.6** - Windows hardening checks: a Hardening page (both looks) for Defender's settings (PUA, cloud protection, sample
+  submission, network protection, ASR rules), Defender exclusions (broad or Temp / unsigned ones flagged; "Check (admin)" when
+  Windows hides them), remote access (Remote Desktop + NLA, remote-access apps that start with Windows or run unattended),
+  old features (SMBv1, PowerShell 2.0, AutoPlay), accounts (no password, Guest, several admins, admin with UAC off) and Wi-Fi
+  (open networks that auto-connect, the current network's security - never a password). Read-only, lightly in the score
+  (at most 10), on the to-do list.
 - **1.5** - New app icon: a blue-to-purple shield with a check, in the Hallow family style (Hallow Shield, the browser
   extension, has the orange shield with a "blocked" mark). Nothing else changed.
 - **1.4** - the cyber look: a security-console design with a radar score ring, `[OK]` / `[WARN]` / `[RISK]` status rows,

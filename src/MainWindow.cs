@@ -1,5 +1,6 @@
-﻿// Hallow Guard main window: the page list on the left (Overview, Scan, History, Network, Extensions, Ransomware, Leftovers,
-// Settings) and the open page. The v1.2 pages (Network, Extensions, Ransomware) are in Pages12.cs.
+﻿// Hallow Guard main window: the page list on the left (Overview, Scan, History, Network, Extensions, Ransomware, Hardening,
+// Leftovers, Reports, Settings) and the open page. The v1.2 pages (Network, Extensions, Ransomware) are in Pages12.cs, the v1.6
+// Hardening page in PagesHardening.cs.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -68,7 +69,7 @@ namespace HallowGuard
             nav.Clear();
             foreach (var p in new[] { Tuple.Create("overview", "Overview", "shield-halved"), Tuple.Create("scan", "Scan", "magnifying-glass"), Tuple.Create("history", "History", "clock-rotate-left"),
                 Tuple.Create("network", "Network", "globe"), Tuple.Create("extensions", "Extensions", "puzzle-piece"), Tuple.Create("ransomware", "Ransomware", "lock"),
-                Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("reports", "Reports", "chart-line"), Tuple.Create("settings", "Settings", "gear") })
+                Tuple.Create("hardening", "Hardening", "user-shield"), Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("reports", "Reports", "chart-line"), Tuple.Create("settings", "Settings", "gear") })
             {
                 var id = p.Item1;
                 var b = new Button { Style = Ui.S("Nav"), Content = Icons.WithText(p.Item3, p.Item2, 15, Ui.R("Text")), Margin = new Thickness(10, 0, 10, 0) };
@@ -95,7 +96,7 @@ namespace HallowGuard
 
         void OnChanged(string what)
         {
-            if (what == page || (what == "checks" && (page == "overview" || page == "ransomware")) ||(what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history") || (what == "reports" && page == "overview")) Show(page);
+            if (what == page || (what == "checks" && (page == "overview" || page == "ransomware" || page == "hardening")) ||(what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history") || (what == "reports" && page == "overview")) Show(page);
         }
 
         public void Show(string p)
@@ -112,6 +113,7 @@ namespace HallowGuard
                 case "network": el = NetworkPage(); break;
                 case "extensions": el = ExtensionsPage(); break;
                 case "ransomware": el = RansomwarePage(); break;
+                case "hardening": el = HardeningPage(); break;
                 case "reports": el = ReportsPage(); break;
                 case "settings": el = SettingsPage(); break;
                 default: page = "overview"; el = Look.Cyber ? CyOverviewPage() : OverviewPage(); break;
@@ -192,6 +194,7 @@ namespace HallowGuard
                 chips.Children.Add(GroupChip("Windows", c.ScoreValue));
                 chips.Children.Add(GroupChip("Hallow apps", c.AppsValue));
                 chips.Children.Add(GroupChip("Network & browsers", c.MoreValue));
+                chips.Children.Add(GroupChip("Hardening", c.HardValue));
                 info.Children.Add(chips);
             }
             var again = Ui.Btn(c.Checking ? "Checking..." : "Check again", () => c.RefreshChecks()); again.IsEnabled = !c.Checking;
@@ -237,6 +240,7 @@ namespace HallowGuard
                 foreach (var ch in Ordered(c.MoreChecks)) sp.Children.Add(CheckCard(ch));
                 sp.Children.Add(Ui.Muted("A suspicious program open to the network costs " + NetView.SuspiciousPoints + " points, each high-risk browser extension " + ExtScan.HighPoints + " (at most " + ExtScan.MaxPoints + "); this group takes at most " + MoreScore.Cap + " off the family score.", 11.5, 8));
             }
+            HardeningSummary(sp);
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these. \"Open settings\" takes you to the right Windows page; nothing is changed behind your back.", 11.5, 0));
             return sp;
         }
@@ -274,6 +278,7 @@ namespace HallowGuard
             if (ch.FixLabel != null) { var fb = FixButton(ch, false); DockPanel.SetDock(fb, Dock.Right); row.Children.Add(fb); }
             var txt = new StackPanel();
             var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
+            if (ch.Group == HardScore.Group) { var code = new TextBlock { Text = Hud.Code(ch.State), FontFamily = new FontFamily("Consolas"), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = StateBrush(ch.State), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }; head.Children.Add(code); }   // v1.6: a status code, never colour alone
             head.Children.Add(Ui.T(ch.Title, 13.5, true));
             if (ch.NotInstalled) { var chip = Chip("Not installed", Ui.R("Line")); ((TextBlock)((Border)chip).Child).Foreground = Ui.R("Muted"); chip.Margin = new Thickness(10, 0, 0, 0); head.Children.Add(chip); }
             txt.Children.Add(head);

@@ -82,7 +82,7 @@ namespace HallowGuard
             nav.Clear(); int n = 0;
             foreach (var p in new[] { Tuple.Create("overview", "Overview", "shield-halved"), Tuple.Create("scan", "Scan", "magnifying-glass"), Tuple.Create("history", "History", "clock-rotate-left"),
                 Tuple.Create("network", "Network", "globe"), Tuple.Create("extensions", "Extensions", "puzzle-piece"), Tuple.Create("ransomware", "Ransomware", "lock"),
-                Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("reports", "Reports", "chart-line"), Tuple.Create("settings", "Settings", "gear") })
+                Tuple.Create("hardening", "Hardening", "user-shield"), Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("reports", "Reports", "chart-line"), Tuple.Create("settings", "Settings", "gear") })
             {
                 var id = p.Item1; n++;
                 var ct = new StackPanel { Orientation = Orientation.Horizontal };
@@ -192,6 +192,7 @@ namespace HallowGuard
                 info.Children.Add(Hud.SegBar("Windows", c.ScoreValue));
                 info.Children.Add(Hud.SegBar("Hallow apps", c.AppsValue));
                 info.Children.Add(Hud.SegBar("Network & browsers", c.MoreValue));
+                info.Children.Add(Hud.SegBar("Hardening", c.HardValue));
             }
             var again = Ui.Btn(c.Checking ? "Checking..." : "Check again", () => c.RefreshChecks()); again.IsEnabled = !c.Checking;
             var quick = Ui.Btn(c.Scanning ? "Scanning..." : "Quick scan", () => { var e = c.StartScan("quick", null); if (e != null) Say(e); else Show("scan"); }, true); quick.IsEnabled = !c.Scanning;
@@ -218,6 +219,7 @@ namespace HallowGuard
                 sp.Children.Add(CyGroup(Ordered(c.MoreChecks), false));
                 sp.Children.Add(Ui.Muted("A suspicious program open to the network costs " + NetView.SuspiciousPoints + " points, each high-risk browser extension " + ExtScan.HighPoints + " (at most " + ExtScan.MaxPoints + "); this group takes at most " + MoreScore.Cap + " off the family score.", 11.5, 8));
             }
+            HardeningSummary(sp);
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these. \"Open settings\" takes you to the right Windows page; nothing is changed behind your back.", 11.5, 0));
             return sp;
         }

@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.5.0.0")]
-[assembly: AssemblyFileVersion("1.5.0.0")]
+[assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyFileVersion("1.6.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.5";
+        public const string Version = "1.6";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -84,10 +84,10 @@ namespace HallowGuard
                 new ScanRecord { Kind = "custom", Target = @"D:\Old games", Start = now.AddDays(-80).ToString("o"), End = now.AddDays(-80).AddMinutes(9).ToString("o"), Result = "threats", Threats = 1, Note = "HackTool:Win32/Keygen" } };
             c.LoadSnapData();
             var w = new MainWindow(c);
-            foreach (var page in new[] { "overview", "scan", "history", "network", "extensions", "ransomware", "leftovers", "reports", "settings" })
+            foreach (var page in new[] { "overview", "scan", "history", "network", "extensions", "ransomware", "hardening", "leftovers", "reports", "settings" })
             { w.Show(page); Snap.Save(w, Path.Combine(dir, page + ".png"), 1040, 720); }
             w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-full.png"), 1040, 0);
-            foreach (var page in new[] { "network", "extensions", "ransomware" }) { w.Show(page); Snap.Save(w, Path.Combine(dir, page + "-full.png"), 1040, 0); }
+            foreach (var page in new[] { "network", "extensions", "ransomware", "hardening" }) { w.Show(page); Snap.Save(w, Path.Combine(dir, page + "-full.png"), 1040, 0); }
             c.Names = FakeExtras.Names(); w.Show("network"); Snap.Save(w, Path.Combine(dir, "network-names.png"), 1040, 720); c.Names = new Dictionary<string, string>();
             c.SetFamily(FakeFamily.NoneInstalled()); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-no-apps.png"), 1040, 0);
             c.SetFamily(FakeFamily.Sample());
@@ -101,7 +101,11 @@ namespace HallowGuard
             // v1.4: the look picker in Settings, the scan console further on, and a PC in good shape (the pulsing ring)
             w.Show("settings"); Snap.Save(w, Path.Combine(dir, "settings-look.png"), 1040, 720);
             c.SnapScanning(); c.SnapMoreLines(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-console.png"), 1040, 720);
+            // v1.6: hardening before "Check (admin)" (Windows hides the exclusions), then the PC in good shape
+            c.SetHardening(FakeHardening.Hidden()); w.Show("hardening"); Snap.Save(w, Path.Combine(dir, "hardening-admin.png"), 1040, 720);
+            c.SetHardening(FakeHardening.Sample());
             c.SnapSecure(); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-secure.png"), 1040, 720);
+            w.Show("hardening"); Snap.Save(w, Path.Combine(dir, "hardening-secure.png"), 1040, 0);
         }
     }
 
@@ -131,6 +135,9 @@ namespace HallowGuard
         public List<ExtInfo> Exts; public bool ExtReading; public DateTime? ExtsAt;
         public List<Check> MoreChecks; public int? MoreValue; public List<FolderHint> Folders;
         readonly INetSource netSource; readonly IExtSource extSource;
+        // v1.6: Windows hardening (read-only) - its checks and the "Hardening" group of the score
+        public HardeningFacts Hard; public List<Check> HardChecks; public int? HardValue; public bool HardReading;
+        readonly IHardeningSource hardSource;
         // v1.3: the quick scan while you're away, the weekly report, "what changed since last week"
         public readonly IClock Clock; readonly IIdleSource idleSrc; readonly IPowerSource powerSrc; readonly IBusySource busySrc;
         readonly AwayScanner away; public string AwayStatus;
@@ -149,6 +156,7 @@ namespace HallowGuard
             leftoverSource = fake ? (ILeftoverSource)new FakeLeftovers() : new WindowsLeftovers();
             netSource = fake ? (INetSource)new FakeNet() : new WindowsNet();
             extSource = fake ? (IExtSource)new FakeExts() : new WindowsExts();
+            hardSource = fake ? (IHardeningSource)new FakeHardeningSource() : new WindowsHardening();
             famEnv = snapMode ? null : GuardSettings.TestDir != null ? FamilyEnv.ForTest(GuardSettings.TestDir) : FamilyEnv.Real();
             Store = GuardSettings.TestDir != null || snapMode ? StartupStore.ForTest(@"Software\HallowGuard\Test-" + (GuardSettings.TestDir == null ? "snap" : Path.GetFileName(GuardSettings.TestDir.TrimEnd('\\')))) : StartupStore.Real();
             // v1.3: real clock / idle time / power / "is a game running", or fakes (snapshots and the test copy - set over the test pipe)
@@ -200,7 +208,7 @@ namespace HallowGuard
         public void LoadSnapData()
         {
             Facts = probe.Read(); Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); CheckedAt = DateTime.Now.AddMinutes(-3);
-            Net = netSource.Read(); Exts = extSource.Read(); ExtsAt = DateTime.Now.AddMinutes(-2);
+            Net = netSource.Read(); Exts = extSource.Read(); ExtsAt = DateTime.Now.AddMinutes(-2); Hard = hardSource.Read();
             SetFamily(FakeFamily.Sample());
             string e; ThreatList = threatSource.Read(out e);
             LeftoverList = leftoverSource.Hunt(null); HuntedAt = DateTime.Now.AddMinutes(-1);
@@ -226,7 +234,9 @@ namespace HallowGuard
             Net = FakeExtras.Network(); Net.Listeners.RemoveAll(l => l.V == Verdict.Suspicious); Net.Apps.RemoveAll(a => a.Name == "updsvc");
             Exts = FakeExtras.Extensions().Where(e => e.Risk != "High").ToList();
             SetFamily(FakeFamily.Sample()); if (AppChecks != null) foreach (var x in AppChecks) if (!x.NotInstalled && x.Penalty > 0) { x.State = CheckState.Good; x.Penalty = 0; }
-            AppsValue = FamilyScore.AppsScore(AppChecks); MoreValue = MoreScore.GroupScore(MoreChecks); FamilyValue = FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks);
+            Hard = FakeHardening.Secure(); Recount();
+            if (AppChecks != null) foreach (var x in AppChecks) if (!x.NotInstalled && x.Penalty > 0) { x.State = CheckState.Good; x.Penalty = 0; }
+            AppsValue = FamilyScore.AppsScore(AppChecks); FamilyValue = FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks, HardChecks);
         }
         public IBusySource BusySource { get { return busySrc; } }
         // v1.4: Settings > Look
@@ -271,7 +281,7 @@ namespace HallowGuard
         public void RefreshChecks()
         {
             if (Checking) return; Checking = true; Fire("checks");
-            RefreshNetwork(); RefreshExtensions();
+            RefreshNetwork(); RefreshExtensions(); RefreshHardening();
             var t = new Thread(() =>
             {
                 SystemFacts f = null; try { f = probe.Read(); } catch (Exception e) { Log("checks failed: " + e.Message); f = new SystemFacts(); }
@@ -301,12 +311,30 @@ namespace HallowGuard
             }) { IsBackground = true, Name = "family", Priority = ThreadPriority.BelowNormal }.Start();
         }
         public void SetFamily(FamilyFacts ff) { Fam = ff; Recount(); }
+        public void SetHardening(HardeningFacts h) { Hard = h; Recount(); }
+        // ---- v1.6: Windows hardening (Defender settings and exclusions, remote access, old features, accounts, Wi-Fi - read-only)
+        public void RefreshHardening()
+        {
+            if (HardReading) return; HardReading = true; Fire("hardening");
+            new Thread(() =>
+            {
+                HardeningFacts h; var sw = Stopwatch.StartNew();
+                try { h = hardSource.Read(); } catch (Exception e) { Log("hardening failed: " + e.Message); h = null; }
+                ui.BeginInvoke(new Action(() =>
+                {
+                    HardReading = false; if (h != null) Hard = h;
+                    Log("hardening in " + sw.ElapsedMilliseconds + " ms" + (h == null ? "" : " (" + string.Join(", ", h.Timings) + ")"));   // timings only: never names, paths or Wi-Fi details
+                    Recount(); WriteStatus(); Fire("hardening"); Fire("checks");
+                }));
+            }) { IsBackground = true, Name = "hardening", Priority = ThreadPriority.BelowNormal }.Start();
+        }
         void Recount()
         {
             AppChecks = Fam == null ? null : FamilyScore.Evaluate(Fam);
             MoreChecks = Net == null && Exts == null ? null : MoreScore.Evaluate(Net, Exts);
-            FamilyValue = ScoreValue < 0 ? -1 : FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks);
-            AppsValue = FamilyScore.AppsScore(AppChecks); MoreValue = MoreScore.GroupScore(MoreChecks);
+            HardChecks = Hard == null ? null : HardScore.Evaluate(Hard, Facts);
+            FamilyValue = ScoreValue < 0 ? -1 : FamilyScore.Combined(ScoreValue, AppChecks, MoreChecks, HardChecks);
+            AppsValue = FamilyScore.AppsScore(AppChecks); MoreValue = MoreScore.GroupScore(MoreChecks); HardValue = HardScore.GroupScore(HardChecks);
             try
             {
                 if (SnapMode || GuardSettings.Fake) Folders = FakeExtras.Hints();
@@ -314,7 +342,7 @@ namespace HallowGuard
             }
             catch (Exception e) { Log("folders: " + e.Message); }
         }
-        public List<Check> AllChecks() { return (Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>()).Concat(MoreChecks ?? new List<Check>()).ToList(); }
+        public List<Check> AllChecks() { return (Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>()).Concat(MoreChecks ?? new List<Check>()).Concat(HardChecks ?? new List<Check>()).ToList(); }
         // v1.3: new suspicious items since last week go first (they cost no points - they ask you to look)
         public List<Check> Todo()
         {
@@ -384,12 +412,15 @@ namespace HallowGuard
             if (action == "scan:quick") { StartScan("quick", null); ShowMain("scan"); return; }
             if (action.StartsWith("page:")) { ShowMain(action.Substring(5)); return; }
             if (action == "admin:bitlocker") { CheckBitLockerAsAdmin(); return; }
+            if (action == "admin:exclusions") { CheckExclusionsAsAdmin(); return; }
+            if (action.StartsWith("steps:")) { var st = HardScore.Steps(action.Substring(6)); Log("steps " + action.Substring(6)); if (st != null && main != null && !SnapMode && GuardSettings.TestDir == null) main.ShowSteps(st[0], st[1]); return; }
             if (action.StartsWith("app:")) { OpenApp(action.Substring(4)); return; }
             if (GuardSettings.TestDir != null) return;   // tests never open Windows pages
             if (action.StartsWith("url:")) { var u = action.Substring(4); if (u.StartsWith("https://github.com/Dom428/")) try { Process.Start(u); } catch (Exception e) { Say("Couldn't open the page: " + e.Message); } return; }
             try
             {
                 if (action == "control:bitlocker") Process.Start("control.exe", "/name Microsoft.BitLockerDriveEncryption");
+                else if (action == "control:features") Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "OptionalFeatures.exe"));
                 else if (action == "uac") Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "UserAccountControlSettings.exe"));
                 else if (action.StartsWith("windowsdefender:") || action.StartsWith("ms-settings:")) Process.Start(action);
             }
@@ -431,6 +462,24 @@ namespace HallowGuard
                     ui.BeginInvoke(new Action(RefreshChecks));
                 }
                 catch { ui.BeginInvoke(new Action(() => Say("BitLocker wasn't checked (the admin prompt was closed)."))); }
+            }) { IsBackground = true }.Start();
+        }
+        // v1.6: Defender's exclusion lists are admin-only. Only when you click: Windows asks (UAC), and it only reads them into
+        // exclusions.json in Guard's data folder (trusted for 7 days) - nothing is changed.
+        void CheckExclusionsAsAdmin()
+        {
+            if (GuardSettings.TestDir != null) { Log("admin check skipped in tests"); return; }
+            var file = HardeningProbe.ExclusionsFile; Directory.CreateDirectory(Path.GetDirectoryName(file));
+            var ps = "$ErrorActionPreference='Stop'; $p = Get-MpPreference; @{ paths = @($p.ExclusionPath | Where-Object { $_ }); exts = @($p.ExclusionExtension | Where-Object { $_ }); procs = @($p.ExclusionProcess | Where-Object { $_ }) } | ConvertTo-Json | Set-Content -LiteralPath '" + file.Replace("'", "''") + "' -Encoding UTF8";
+            new Thread(() =>
+            {
+                try
+                {
+                    using (var p = Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"" + ps.Replace("\"", "\\\"") + "\"") { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden }))
+                        p.WaitForExit(60000);
+                    ui.BeginInvoke(new Action(RefreshHardening));
+                }
+                catch { ui.BeginInvoke(new Action(() => Say("The exclusions weren't checked (the admin prompt was closed)."))); }
             }) { IsBackground = true }.Start();
         }
         public void Say(string text) { if (main != null) main.Say(text); Log(text); }
@@ -829,7 +878,7 @@ namespace HallowGuard
                 { "watchDownloads", S.WatchDownloads }, { "weeklyReminder", S.WeeklyReminder }, { "startsWithWindows", StartsWithWindows() }, { "virusTotalKey", S.VtKey != null },
                 { "lastCrash", Crash.LastTime() == null ? null : Family.Time(Crash.LastTime().Value) },
                 // v1.2: ransomware protection, programs open to the network, browser extensions (counts only - no names, addresses or paths)
-                { "ransomware", Facts == null || Facts.Cfa == null ? null : Ransom.ModeWord(Facts.Cfa.Mode) }, { "moreScore", MoreValue },
+                { "ransomware", Facts == null || Facts.Cfa == null ? null : Ransom.ModeWord(Facts.Cfa.Mode) }, { "moreScore", MoreValue }, { "hardeningScore", HardValue },
                 { "network", Net == null || Net.Error != null ? null : new Dictionary<string, object> { { "apps", Net.Apps.Count }, { "listeners", Net.Listeners.Count }, { "suspicious", Net.Listeners.Count(l => l.V == Verdict.Suspicious) } } },
                 { "extensions", Exts == null ? null : new Dictionary<string, object> { { "total", Exts.Count }, { "high", Exts.Count(x => x.Risk == "High") }, { "medium", Exts.Count(x => x.Risk == "Medium") }, { "low", Exts.Count(x => x.Risk == "Low") }, { "known", Exts.Count(x => x.Known) } } },
                 // v1.3: the away scan, the newest weekly report (counts only) and what changed since last week (counts only)
@@ -853,6 +902,7 @@ namespace HallowGuard
             var t = new Dictionary<string, object> { { "watching", Watching }, { "notifications", Notifications }, { "queue", queue.Count }, { "hunting", Hunting },
                 { "leftovers", LeftoverList == null ? -1 : LeftoverList.Count }, { "lastMessage", LastScanMessage } };
             if (Checks != null) t["checks"] = Checks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
+            if (HardChecks != null) t["hardChecks"] = HardChecks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
             if (MoreChecks != null) t["moreChecks"] = MoreChecks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
             if (AppChecks != null) t["appChecks"] =AppChecks.Select(x => x.Id + "=" + (x.NotInstalled ? "missing" : x.State.ToString()) + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
             if (Checks != null) t["todoIds"] = Todo().Select(x => x.Id).ToArray();
