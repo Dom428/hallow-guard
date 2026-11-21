@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.0";
+        public const string Version = "1.1";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -77,6 +77,9 @@ namespace HallowGuard
             var w = new MainWindow(c);
             foreach (var page in new[] { "overview", "scan", "history", "leftovers", "settings" })
             { w.Show(page); Snap.Save(w, Path.Combine(dir, page + ".png"), 1040, 720); }
+            w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-full.png"), 1040, 0);
+            c.SetFamily(FakeFamily.NoneInstalled()); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-no-apps.png"), 1040, 0);
+            c.SetFamily(FakeFamily.Sample());
             c.SnapScanning(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-running.png"), 1040, 720);
             c.SnapLookup = new VtResult { Found = true, Malicious = 9, Suspicious = 2, Undetected = 61 }.Summary; w.Show("leftovers"); Snap.Save(w, Path.Combine(dir, "leftovers-lookup.png"), 1040, 720);
             Snap.Save(CrashNotice.Make(Path.Combine(dir, "example.txt")), Path.Combine(dir, "crash.png"), 440, 0);
@@ -96,6 +99,9 @@ namespace HallowGuard
 
         // what the pages show
         public List<Check> Checks; public SystemFacts Facts; public int ScoreValue = -1; public DateTime? CheckedAt; public bool Checking;
+        // v1.1: the Hallow family - its checks, the combined score and the "Hallow apps" group score (null = no Hallow app installed)
+        public List<Check> AppChecks; public FamilyFacts Fam; public int FamilyValue = -1; public int? AppsValue;
+        readonly FamilyEnv famEnv; bool famReading;
         public List<ThreatRecord> ThreatList; public string ThreatError; public bool ThreatsLoading;
         public List<Leftover> LeftoverList; public bool Hunting; public string HuntStep; public DateTime? HuntedAt;
         public ScanJob Current; readonly Queue<Tuple<string, string>> queue = new Queue<Tuple<string, string>>();
@@ -111,6 +117,7 @@ namespace HallowGuard
             probe = fake ? (ISecurityProbe)new FakeProbe() : new WindowsProbe();
             threatSource = fake ? (IThreatSource)new FakeThreatSource() : new WindowsThreatSource();
             leftoverSource = fake ? (ILeftoverSource)new FakeLeftovers() : new WindowsLeftovers();
+            famEnv = snapMode ? null : GuardSettings.TestDir != null ? FamilyEnv.ForTest(GuardSettings.TestDir) : FamilyEnv.Real();
             Store = GuardSettings.TestDir != null || snapMode ? StartupStore.ForTest(@"Software\HallowGuard\Test-" + (GuardSettings.TestDir == null ? "snap" : Path.GetFileName(GuardSettings.TestDir.TrimEnd('\\')))) : StartupStore.Real();
             if (snapMode) return;
             Crash.Secrets = S.GetVtKey() == null ? new string[0] : new[] { S.GetVtKey() };
@@ -132,6 +139,7 @@ namespace HallowGuard
             RefreshChecks(); RefreshThreats();
             var st = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) }; st.Tick += (s, e) => WriteStatus(); st.Start();
             var rc = new DispatcherTimer { Interval = TimeSpan.FromHours(6) }; rc.Tick += (s, e) => { RefreshChecks(); RefreshThreats(); }; rc.Start();
+            var rf = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.1 : 5) }; rf.Tick += (s, e) => RefreshFamily(); rf.Start();
             var rm = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.05 : 3) };
             rm.Tick += (s, e) => { rm.Interval = TimeSpan.FromHours(1); CheckReminder(); }; rm.Start();
             if (S.WatchDownloads) StartWatching();
@@ -144,6 +152,7 @@ namespace HallowGuard
         public void LoadSnapData()
         {
             Facts = probe.Read(); Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); CheckedAt = DateTime.Now.AddMinutes(-3);
+            SetFamily(FakeFamily.Sample());
             string e; ThreatList = threatSource.Read(out e);
             LeftoverList = leftoverSource.Hunt(null); HuntedAt = DateTime.Now.AddMinutes(-1);
             WatchLog = new List<string> { DateTime.Now.AddHours(-3).ToString("HH:mm") + "  obs-studio-setup.exe - nothing found", DateTime.Now.AddHours(-1).ToString("HH:mm") + "  holiday-photos.zip - nothing found" };
@@ -188,14 +197,39 @@ namespace HallowGuard
             var t = new Thread(() =>
             {
                 SystemFacts f = null; try { f = probe.Read(); } catch (Exception e) { Log("checks failed: " + e.Message); f = new SystemFacts(); }
+                FamilyFacts ff = ReadFamily();
                 ui.BeginInvoke(new Action(() =>
                 {
                     Facts = f; Checks = Score.Evaluate(f, LastGuardScanTime()); ScoreValue = Score.Total(Checks); CheckedAt = DateTime.Now; Checking = false;
-                    Log("score " + ScoreValue); WriteStatus(); Fire("checks");
+                    if (ff != null) Fam = ff; Recount();
+                    Log("score " + ScoreValue + " family " + FamilyValue); WriteStatus(); Fire("checks");
                 }));
             }) { IsBackground = true, Name = "checks" };
             t.SetApartmentState(ApartmentState.STA); t.Start();
         }
+        // ---- v1.1: the Hallow family (read-only: status files, pipes, copies of browser profile files)
+        FamilyFacts ReadFamily()
+        {
+            if (famEnv == null) return null;
+            try { return FamilyProbe.Read(famEnv); } catch (Exception e) { Log("family read failed: " + e.Message); return null; }
+        }
+        public void RefreshFamily()
+        {
+            if (famReading || famEnv == null) return; famReading = true;
+            new Thread(() =>
+            {
+                var ff = ReadFamily();
+                ui.BeginInvoke(new Action(() => { famReading = false; if (ff == null) return; Fam = ff; Recount(); WriteStatus(); Fire("checks"); }));
+            }) { IsBackground = true, Name = "family", Priority = ThreadPriority.BelowNormal }.Start();
+        }
+        public void SetFamily(FamilyFacts ff) { Fam = ff; Recount(); }
+        void Recount()
+        {
+            AppChecks = Fam == null ? null : FamilyScore.Evaluate(Fam);
+            FamilyValue = ScoreValue < 0 ? -1 : FamilyScore.Combined(ScoreValue, AppChecks);
+            AppsValue = FamilyScore.AppsScore(AppChecks);
+        }
+        public List<Check> Todo() { return FamilyScore.Todo((Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>())); }
         public void RefreshThreats()
         {
             if (ThreatsLoading) return; ThreatsLoading = true;
@@ -214,7 +248,9 @@ namespace HallowGuard
             if (action == "scan:quick") { StartScan("quick", null); ShowMain("scan"); return; }
             if (action == "page:scan") { ShowMain("scan"); return; }
             if (action == "admin:bitlocker") { CheckBitLockerAsAdmin(); return; }
+            if (action.StartsWith("app:")) { OpenApp(action.Substring(4)); return; }
             if (GuardSettings.TestDir != null) return;   // tests never open Windows pages
+            if (action.StartsWith("url:")) { var u = action.Substring(4); if (u.StartsWith("https://github.com/Dom428/")) try { Process.Start(u); } catch (Exception e) { Say("Couldn't open the page: " + e.Message); } return; }
             try
             {
                 if (action == "control:bitlocker") Process.Start("control.exe", "/name Microsoft.BitLockerDriveEncryption");
@@ -222,6 +258,27 @@ namespace HallowGuard
                 else if (action.StartsWith("windowsdefender:") || action.StartsWith("ms-settings:")) Process.Start(action);
             }
             catch (Exception e) { Say("Couldn't open that page: " + e.Message); }
+        }
+        // v1.1: "Open Hallow X" (its own window: through its pipe when it runs, else start it) / "Start Hallow X" (in the tray)
+        public static readonly string[] FamilyApps = { "Keys", "Vault", "Assist" };
+        void OpenApp(string what)
+        {
+            bool start = what.StartsWith("start:"); var app = start ? what.Substring(6) : what;
+            if (Array.IndexOf(FamilyApps, app) < 0) return;
+            if (GuardSettings.TestDir != null) { Log("open app " + what + " (tests never start apps)"); return; }
+            new Thread(() =>
+            {
+                string err = null;
+                try
+                {
+                    if (!start && Family.Error(Family.Send(app, "open", 3000), "not running") == null) return;
+                    var exe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Hallow " + app, "Hallow" + app + ".exe");
+                    if (!File.Exists(exe)) err = "Hallow " + app + " isn't installed.";
+                    else Process.Start(new ProcessStartInfo(exe, start ? "--tray" : "") { UseShellExecute = false });
+                }
+                catch (Exception e) { err = e.Message; }
+                ui.BeginInvoke(new Action(() => { if (err != null) Say("Couldn't open Hallow " + app + ": " + err); else if (start) { Say("Started Hallow " + app + "."); var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) }; t.Tick += (s, e) => { t.Stop(); RefreshFamily(); }; t.Start(); } }));
+            }) { IsBackground = true }.Start();
         }
         // reading BitLocker's status needs admin: only when you click, Windows asks (UAC), and it only reads
         void CheckBitLockerAsAdmin()
@@ -281,7 +338,7 @@ namespace HallowGuard
                 RefreshThreats();
             }
             else if (j.Kind != "download" && main == null && j.Result != "cancelled") Notify("Hallow Guard", LastScanMessage);
-            if (Checks != null && Facts != null && (j.Kind == "quick" || j.Kind == "full")) { Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); Fire("checks"); }
+            if (Checks != null && Facts != null && (j.Kind == "quick" || j.Kind == "full")) { Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); Recount(); Fire("checks"); }
             WriteStatus(); Fire("scan");
             Tuple<string, string> next = null; lock (queue) if (queue.Count > 0) next = queue.Dequeue();
             if (next != null) StartScan(next.Item1, next.Item2);
@@ -505,6 +562,9 @@ namespace HallowGuard
             var d = new Dictionary<string, object> {
                 { "app", "Guard" }, { "version", Program.Version }, { "updated", Family.Time(DateTime.Now) }, { "running", running },
                 { "score", ScoreValue >= 0 ? (object)ScoreValue : null }, { "scoreLabel", ScoreValue >= 0 ? Score.Label(ScoreValue) : null },
+                { "familyScore", FamilyValue >= 0 ? (object)FamilyValue : null }, { "familyLabel", FamilyValue >= 0 ? Score.Label(FamilyValue) : null },
+                { "windowsScore", ScoreValue >= 0 ? (object)ScoreValue : null }, { "appsScore", AppsValue },
+                { "todo", Checks == null ? null : (object)Todo().Count }, { "family", FamilyStates() },
                 { "checked", CheckedAt == null ? null : Family.Time(CheckedAt.Value) },
                 { "lastScan", any == null ? null : Family.Time(any.Value) },
                 { "lastGuardScan", last == null ? null : last.End }, { "lastGuardScanKind", last == null ? null : last.Kind }, { "lastGuardScanResult", last == null ? null : last.Result },
@@ -515,12 +575,22 @@ namespace HallowGuard
             if (GuardSettings.TestDir != null) d["test"] = TestState();
             return d;
         }
+        // v1.1: each Hallow app' state for other apps: good / warn / bad / unknown / info, or "missing" (not installed)
+        Dictionary<string, object> FamilyStates()
+        {
+            if (AppChecks == null) return null;
+            var d = new Dictionary<string, object>();
+            foreach (var x in AppChecks) d[x.Id] = x.NotInstalled ? "missing" : x.State.ToString().ToLowerInvariant();
+            return d;
+        }
         public void WriteStatus(bool running = true) { if (!SnapMode) Family.WriteStatus(Family.Json(StatusData(running))); }
         Dictionary<string, object> TestState()
         {
             var t = new Dictionary<string, object> { { "watching", Watching }, { "notifications", Notifications }, { "queue", queue.Count }, { "hunting", Hunting },
                 { "leftovers", LeftoverList == null ? -1 : LeftoverList.Count }, { "lastMessage", LastScanMessage } };
             if (Checks != null) t["checks"] = Checks.Select(x => x.Id + "=" + x.State + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
+            if (AppChecks != null) t["appChecks"] = AppChecks.Select(x => x.Id + "=" + (x.NotInstalled ? "missing" : x.State.ToString()) + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
+            if (Checks != null) t["todoIds"] = Todo().Select(x => x.Id).ToArray();
             if (LeftoverList != null) t["verdicts"] = LeftoverList.GroupBy(x => x.Kind + "/" + x.V).Select(g => g.Key + ":" + g.Count()).ToArray();
             if (Current != null) { t["job"] = Current.Kind; t["jobResult"] = Current.Result; t["jobThreats"] = Current.Threats; t["jobTarget"] = Current.Target; }
             lock (log) t["log"] = log.ToArray();
@@ -579,6 +649,7 @@ namespace HallowGuard
                 case "test-watch": SetWatch(arg == "on"); return "ok";
                 case "test-hunt": Hunt(); return "ok";
                 case "test-checks": RefreshChecks(); return "ok";
+                case "test-family": RefreshFamily(); return "ok";
                 case "test-reminder": S.LastReminder = null; S.Save(); CheckReminder(); return "ok " + Notifications;
                 case "test-fix": RunFix(arg); return "ok";
                 case "test-autostart": SetStartWithWindows(arg == "on"); return "ok";

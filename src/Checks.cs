@@ -39,6 +39,8 @@ namespace HallowGuard
     {
         public string Id, Title, Line, FixLabel, FixAction;   // FixAction: a windowsdefender:/ms-settings: URI, "scan:quick", "page:scan" or "admin:bitlocker"
         public CheckState State; public int Penalty;
+        public string Group = "windows";   // v1.1: "windows" (the 12 checks) or "apps" (the Hallow family)
+        public bool NotInstalled;            // v1.1: a Hallow app that isn't on this PC (never costs points)
     }
 
     public static class Score

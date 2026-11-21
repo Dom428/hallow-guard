@@ -31,7 +31,7 @@ namespace HallowGuard.Tests
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }
@@ -344,6 +344,9 @@ namespace HallowGuard.Tests
             var dir = PipeDir;
             if (Directory.Exists(dir)) Directory.Delete(dir, true); Directory.CreateDirectory(Path.Combine(dir, "Downloads"));
             var mplog = Path.Combine(dir, "mpcmdrun-args.txt");
+            // v1.1: a made-up Hallow Keys 2.8 in the test folder (stand-in exe + a status.json with counts) for the family score
+            Directory.CreateDirectory(Path.Combine(dir, @"Programs\Hallow Keys")); File.WriteAllText(Path.Combine(dir, @"Programs\Hallow Keys\HallowKeys.exe"), "stand-in");
+            Directory.CreateDirectory(Path.Combine(dir, "HallowKeys")); File.WriteAllText(Path.Combine(dir, @"HallowKeys\status.json"), "{\"app\":\"Keys\",\"version\":\"2.8\",\"running\":true,\"locked\":true,\"health\":{\"logins\":30,\"weak\":1,\"reused\":2,\"leaked\":0,\"breached\":0,\"missing2fa\":0,\"old\":0,\"score\":85,\"when\":\"" + Family.Time(DateTime.Now.AddMinutes(-10)) + "\",\"fresh\":false,\"ageMinutes\":10}}");
             var psi = new ProcessStartInfo(exe, "--tray") { UseShellExecute = false, CreateNoWindow = true };
             psi.EnvironmentVariables["HALLOW_GUARD_TESTDIR"] = dir; psi.EnvironmentVariables["HALLOW_GUARD_FAKE"] = "1"; psi.EnvironmentVariables["HALLOW_GUARD_HEADLESS"] = "1";
             psi.EnvironmentVariables["HALLOW_GUARD_MPCMDRUN"] = Process.GetCurrentProcess().MainModule.FileName; psi.EnvironmentVariables["FAKE_MP_LOG"] = mplog;
@@ -360,6 +363,22 @@ namespace HallowGuard.Tests
                 Ok(st != null && (string)st["app"] == "Guard" && Convert.ToInt32(st["score"]) == Score.Total(Score.Evaluate(FakeProbe.Sample(), null)) && Convert.ToInt32(st["threats"]) == 3, "status: score and threat count (" + (st == null ? "none" : st["score"] + ", " + st["threats"]) + ")");
                 Ok(st != null && (bool)st["running"] && !(bool)st["scanning"] && !(bool)st["watchDownloads"] && (bool)st["weeklyReminder"] && st.ContainsKey("lastScan") && st.ContainsKey("lastCrash"), "status: running, not scanning, Watch Downloads off, reminder on by default");
                 Ok(File.Exists(Path.Combine(dir, "status.json")) && File.ReadAllText(Path.Combine(dir, "status.json")).Contains("\"app\":\"Guard\""), "status.json written in the data folder");
+                // v1.1: the family score next to the old fields (Hub reads "score" - unchanged: the Windows score)
+                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("familyScore") && st["familyScore"] != null) break; Thread.Sleep(200); }
+                int win = Convert.ToInt32(st["score"]);
+                Ok(st["familyScore"] != null && Convert.ToInt32(st["familyScore"]) == win - 9 && Convert.ToInt32(st["windowsScore"]) == win && Convert.ToInt32(st["appsScore"]) == 91, "status: familyScore = Windows score - 9 (Keys: 2 reused, 1 weak), windowsScore = score, appsScore 91 (" + st["familyScore"] + ")");
+                var fam = st["family"] as Dictionary<string, object>;
+                Ok(fam != null && (string)fam["keys"] == "warn" && (string)fam["vault"] == "missing" && (string)fam["assist"] == "missing" && (string)fam["shield"] == "missing" && st["todo"] != null && (string)st["familyLabel"] == Score.Label(win - 9), "status: family states (keys warn, the rest missing), familyLabel and a to-do count");
+                foreach (var k in new[] { "app", "version", "updated", "running", "score", "scoreLabel", "checked", "lastScan", "lastGuardScan", "lastGuardScanKind", "lastGuardScanResult", "scanning", "scanKind", "threats", "watchDownloads", "weeklyReminder", "startsWithWindows", "virusTotalKey", "lastCrash" })
+                    if (!st.ContainsKey(k)) Ok(false, "status: 1.0 field kept: " + k);
+                Ok(new[] { "app", "version", "score", "scoreLabel", "threats", "lastCrash" }.All(st.ContainsKey) && (string)st["scoreLabel"] == Score.Label(win), "status: every 1.0 field is still there (backward compatible for Hub)");
+                var tst = (Dictionary<string, object>)st["test"];
+                Ok(((System.Collections.IEnumerable)tst["appChecks"]).Cast<object>().Select(x => x.ToString()).Contains("keys=Warn -9") && ((System.Collections.IEnumerable)tst["todoIds"]).Cast<object>().Select(x => x.ToString()).Contains("keys"), "test copy: Keys counts in the app checks and on the to-do list");
+                File.WriteAllText(Path.Combine(dir, @"HallowKeys\status.json"), "{\"app\":\"Keys\",\"version\":\"2.8\",\"locked\":true,\"health\":{\"logins\":30,\"weak\":0,\"reused\":0,\"leaked\":0,\"breached\":0,\"missing2fa\":0,\"old\":0,\"score\":100,\"when\":\"" + Family.Time(DateTime.Now) + "\"}}");
+                Ok(send("test-family") == "ok", "family re-read on request");
+                for (int i = 0; i < 50; i++) { st = status(); if (Convert.ToInt32(st["familyScore"]) == win) break; Thread.Sleep(200); }
+                Ok(Convert.ToInt32(st["familyScore"]) == win && Convert.ToInt32(st["appsScore"]) == 100, "Keys healthy again: family score = Windows score");
+                Ok(send("test-fix app:Keys") == "ok" && send("test-fix url:https://example.com/") == "ok", "app / url buttons in the test copy: nothing is started or opened");
                 var m = send("menu"); Ok(m != null && m.Contains("\"id\":\"quick\"") && m.Contains("\"label\":\"Quick scan\"") && m.Contains("\"id\":\"watch\""), "menu: Quick scan, Check my PC, Watch Downloads");
                 Ok(send("nonsense") == "error unknown command", "unknown command -> error");
                 Ok(send("scan full") != null && send("scan full").StartsWith("error"), "only 'scan quick' can be started from outside");

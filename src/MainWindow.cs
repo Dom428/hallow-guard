@@ -148,42 +148,102 @@ namespace HallowGuard
             return g;
         }
 
-        // ---------------- Overview
+        // ---------------- Overview (v1.1: one family score - the Windows checks and the Hallow apps - with one to-do list)
         FrameworkElement OverviewPage()
         {
             var sp = Page("Overview", null);
+            int score = c.FamilyValue >= 0 ? c.FamilyValue : c.ScoreValue;
             var top = new DockPanel { Margin = new Thickness(0, 4, 0, 16) };
-            var ring = Ring(c.ScoreValue, 150); ring.Margin = new Thickness(0, 0, 24, 0); DockPanel.SetDock(ring, Dock.Left); top.Children.Add(ring);
+            var ring = Ring(score, 150); ring.Margin = new Thickness(0, 0, 24, 0); DockPanel.SetDock(ring, Dock.Left); top.Children.Add(ring);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            info.Children.Add(Ui.T(c.ScoreValue < 0 ? "Checking your PC..." : Score.Label(c.ScoreValue), 24, true, c.ScoreValue < 0 ? null : ScoreBrush(c.ScoreValue), 4));
-            int todo = c.Checks == null ? 0 : c.Checks.Count(x => x.State == CheckState.Warn || x.State == CheckState.Bad);
-            info.Children.Add(Ui.Muted(c.Checks == null ? "Reading Windows Security and system settings - nothing is changed." : (todo == 0 ? "Everything Hallow Guard checks is in good shape." : todo + (todo == 1 ? " thing" : " things") + " worth a look below.") + (c.CheckedAt == null ? "" : "  Checked " + Score.Ago(c.CheckedAt, DateTime.Now) + "."), 12.5, 12));
+            info.Children.Add(Ui.T(score < 0 ? "Checking your PC..." : Score.Label(score), 24, true, score < 0 ? null : ScoreBrush(score), 4));
+            var todo = c.Todo();
+            info.Children.Add(Ui.Muted(c.Checks == null ? "Reading Windows Security, system settings and your Hallow apps - nothing is changed." : (todo.Count == 0 ? "Everything Hallow Guard checks is in good shape." : "One score for the whole PC: Windows and your Hallow apps.") + (c.CheckedAt == null ? "" : "  Checked " + Score.Ago(c.CheckedAt, DateTime.Now) + "."), 12.5, 8));
+            if (c.ScoreValue >= 0)
+            {
+                var chips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+                chips.Children.Add(GroupChip("Windows", c.ScoreValue));
+                chips.Children.Add(GroupChip("Hallow apps", c.AppsValue));
+                info.Children.Add(chips);
+            }
             var again = Ui.Btn(c.Checking ? "Checking..." : "Check again", () => c.RefreshChecks()); again.IsEnabled = !c.Checking;
             var quick = Ui.Btn(c.Scanning ? "Scanning..." : "Quick scan", () => { var e = c.StartScan("quick", null); if (e != null) Say(e); else Show("scan"); }, true); quick.IsEnabled = !c.Scanning;
             info.Children.Add(Ui.Row(quick, again));
             top.Children.Add(info);
             sp.Children.Add(top);
+            // the one to-do list
             if (c.Checks != null)
-                foreach (var ch in c.Checks.OrderBy(x => x.State == CheckState.Bad ? 0 : x.State == CheckState.Warn ? 1 : x.State == CheckState.Unknown ? 2 : x.State == CheckState.Info ? 3 : 4))
+            {
+                sp.Children.Add(Section("To do", todo.Count == 0 ? "nothing to fix" : "the " + (todo.Count == 1 ? "thing" : todo.Count + " things") + " worth the most points first"));
+                if (todo.Count == 0) sp.Children.Add(Card(Ui.T("Nothing to fix right now.", 13, false, Ui.Green), 8));
+                int i = 0;
+                foreach (var ch in todo)
                 {
-                    var row = new DockPanel();
-                    var ic = Icons.Make(StateIcon(ch.State), 20, StateBrush(ch.State)); ic.Margin = new Thickness(0, 2, 14, 0); ic.VerticalAlignment = VerticalAlignment.Top; DockPanel.SetDock(ic, Dock.Left); row.Children.Add(ic);
-                    if (ch.FixLabel != null)
-                    {
-                        var act = ch.FixAction; var fb = Ui.Btn(ch.FixLabel, () => c.RunFix(act)); fb.Margin = new Thickness(12, 0, 0, 0); fb.VerticalAlignment = VerticalAlignment.Center;
-                        fb.ToolTip = act.StartsWith("admin:") ? "Windows asks for admin first. It only reads the setting." : act.StartsWith("scan:") || act.StartsWith("page:") ? "Asks Microsoft Defender to scan." : "Opens the right Windows page - Hallow Guard doesn't change it for you.";
-                        DockPanel.SetDock(fb, Dock.Right); row.Children.Add(fb);
-                    }
+                    i++; var row = new DockPanel();
+                    var num = new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = StateBrush(ch.State), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+                    num.Child = new TextBlock { Text = i.ToString(), FontWeight = FontWeights.Bold, Foreground = Ui.B("#16121C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                    DockPanel.SetDock(num, Dock.Left); row.Children.Add(num);
+                    var fb = FixButton(ch, true); DockPanel.SetDock(fb, Dock.Right); row.Children.Add(fb);
                     var txt = new StackPanel();
-                    txt.Children.Add(Ui.T(ch.Title, 13.5, true, null, 2));
-                    txt.Children.Add(Ui.Muted(ch.Line, 12.5));
+                    txt.Children.Add(Ui.T(ch.Title + (ch.Penalty > 0 ? "   +" + ch.Penalty + (ch.Penalty == 1 ? " point" : " points") : ""), 13.5, true, null, 2));
+                    txt.Children.Add(Ui.Muted(ch.Line, 12));
                     row.Children.Add(txt);
                     sp.Children.Add(Card(row, 8));
                 }
+            }
+            // the two groups
+            if (c.Checks != null)
+            {
+                sp.Children.Add(Section("Windows", c.ScoreValue + " of 100"));
+                foreach (var ch in Ordered(c.Checks)) sp.Children.Add(CheckCard(ch));
+            }
+            if (c.AppChecks != null)
+            {
+                sp.Children.Add(Section("Hallow apps", c.AppsValue == null ? "none installed - each one is optional" : c.AppsValue + " of 100"));
+                foreach (var ch in c.AppChecks.OrderBy(x => x.NotInstalled ? 1 : 0).ThenBy(x => Rank(x.State))) sp.Children.Add(CheckCard(ch));
+                sp.Children.Add(Ui.Muted("Hallow apps that aren't installed never cost points. Installed ones can take off a few: Hallow Keys up to " + FamilyScore.KeysMax + " (counts only - Guard never opens your vault), Hallow Vault up to " + FamilyScore.VaultMax + ", Hallow Shield 2; the family score is the Windows score minus those points (at most " + FamilyScore.AppsCap + ").", 11.5, 8));
+            }
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these. \"Open settings\" takes you to the right Windows page; nothing is changed behind your back.", 11.5, 0));
             return sp;
         }
-
+        static int Rank(CheckState s) { return s == CheckState.Bad ? 0 : s == CheckState.Warn ? 1 : s == CheckState.Unknown ? 2 : s == CheckState.Info ? 3 : 4; }
+        static IEnumerable<Check> Ordered(IEnumerable<Check> l) { return l.OrderBy(x => Rank(x.State)); }
+        static FrameworkElement Section(string title, string sub)
+        {
+            var p = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 8) };
+            p.Children.Add(new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Bottom });
+            if (sub != null) p.Children.Add(new TextBlock { Text = "   " + sub, FontSize = 12, Foreground = Ui.R("Muted"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 2) });
+            return p;
+        }
+        static FrameworkElement GroupChip(string name, int? score)
+        {
+            var b = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 3, 10, 3), Background = Ui.R("Panel"), BorderBrush = Ui.R("Line"), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 8, 0) };
+            var t = new TextBlock { FontSize = 12 };
+            t.Inlines.Add(new System.Windows.Documents.Run(name + "  ") { Foreground = Ui.R("Muted") });
+            t.Inlines.Add(new System.Windows.Documents.Run(score == null ? "-" : score.ToString()) { FontWeight = FontWeights.Bold, Foreground = score == null ? Ui.R("Muted") : ScoreBrush(score.Value) });
+            b.Child = t; return b;
+        }
+        Button FixButton(Check ch, bool accent)
+        {
+            var act = ch.FixAction; var fb = Ui.Btn(ch.FixLabel, () => c.RunFix(act), accent); fb.Margin = new Thickness(12, 0, 0, 0); fb.VerticalAlignment = VerticalAlignment.Center;
+            fb.ToolTip = act.StartsWith("admin:") ? "Windows asks for admin first. It only reads the setting." : act.StartsWith("scan:") || act.StartsWith("page:") ? "Asks Microsoft Defender to scan."
+                : act.StartsWith("url:") ? "Opens the app's page on GitHub in your browser." : act.StartsWith("app:") ? "Opens the Hallow app - Hallow Guard doesn't change anything in it." : "Opens the right Windows page - Hallow Guard doesn't change it for you.";
+            return fb;
+        }
+        FrameworkElement CheckCard(Check ch)
+        {
+            var row = new DockPanel();
+            var ic = Icons.Make(ch.NotInstalled ? "puzzle-piece" : StateIcon(ch.State), 20, ch.NotInstalled ? Ui.R("Muted") : StateBrush(ch.State)); ic.Margin = new Thickness(0, 2, 14, 0); ic.VerticalAlignment = VerticalAlignment.Top; DockPanel.SetDock(ic, Dock.Left); row.Children.Add(ic);
+            if (ch.FixLabel != null) { var fb = FixButton(ch, false); DockPanel.SetDock(fb, Dock.Right); row.Children.Add(fb); }
+            var txt = new StackPanel();
+            var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
+            head.Children.Add(Ui.T(ch.Title, 13.5, true));
+            if (ch.NotInstalled) { var chip = Chip("Not installed", Ui.R("Line")); ((TextBlock)((Border)chip).Child).Foreground = Ui.R("Muted"); chip.Margin = new Thickness(10, 0, 0, 0); head.Children.Add(chip); }
+            txt.Children.Add(head);
+            txt.Children.Add(Ui.Muted(ch.NotInstalled && ch.Line.StartsWith("Not installed. ") ? ch.Line.Substring(15) : ch.Line, 12.5));
+            row.Children.Add(txt);
+            return Card(row, 8);
+        }
         // ---------------- Scan
         string ElapsedText()
         {

@@ -8,9 +8,16 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.1
+- One family safety score: the Overview also covers your other Hallow apps - Hallow Keys'
+  password health (counts only, the vault is never opened), Hallow Vault's backups,
+  Hallow Shield in your browsers and Hallow Assist's unattended access - with one to-do
+  list and a score for Windows and for the Hallow apps. Apps you don't have never cost points.
+
 WHAT IT DOES
 - Overview: a safety score with a plain-English line per check (Defender, firewall,
-  SmartScreen, Windows Update, BitLocker, UAC, Secure Boot, Memory integrity).
+  SmartScreen, Windows Update, BitLocker, UAC, Secure Boot, Memory integrity), plus the
+  Hallow apps, and the top 5 things to fix.
   "Open settings" opens the right Windows page - Hallow Guard only reads these settings.
 - Scan: quick, full, a folder or a dropped file - Microsoft Defender does the scanning.
   Watch Downloads (off by default) scans each new download once it has finished.

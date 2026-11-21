@@ -92,8 +92,13 @@ namespace HallowGuard
         // is the app's pipe there? (answers at once when it isn't, unlike Connect, which waits out its timeout)
         public static bool Running(string app)
         {
-            if (WaitNamedPipe(@"\\.\pipe\" + PipeName(app), 1)) return true;
-            return Marshal.GetLastWin32Error() != 2;   // 2 = no such pipe; anything else (busy, timeout) means it exists
+            for (int i = 0; ; i++)
+            {
+                if (WaitNamedPipe(@"\\.\pipe\" + PipeName(app), 1)) return true;
+                if (Marshal.GetLastWin32Error() != 2) return true;   // 2 = no such pipe; anything else (busy, timeout) means it exists
+                if (i >= 1) return false;
+                Thread.Sleep(40);   // v1.1: once more - a server is briefly gone between two connections
+            }
         }
         // sends a line to another running Hallow app; null = not running (or no answer in time)
         public static string Send(string app, string line, int replyMs)
