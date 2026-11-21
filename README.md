@@ -35,7 +35,7 @@ never disables, replaces or weakens Defender.
 - **VirusTotal second opinion** (optional): paste your own free API key in Settings (kept encrypted for your Windows
   account). A lookup sends **only the file's SHA-256** (`GET /api/v3/files/{sha256}`) - files are never uploaded. Without a
   key, "Look up" opens the file's VirusTotal page in your browser.
-- **Hallow family**: the family pipe (`ping`, `status`, `open`, `menu`, `invoke`, `scan quick`, `quit`), `HallowGuard.exe
+- **Hallow family**: the family pipe (`ping`, `status`, `open`, `menu`, `invoke`, `scan quick`, `report`, `quit`), `HallowGuard.exe
   --cmd "<line>"`, `%APPDATA%\HallowGuard\status.json` (score, last scan, threat count), notifications through Hallow Hub's
   icon when it runs, a weekly reminder when nothing was scanned for 7 days (on by default, never a scan by itself), the
   Hallow accent, crash reports kept on this PC, and updates from GitHub with a SHA-256 check.
@@ -90,6 +90,37 @@ never disables, replaces or weakens Defender.
   the to-do list. `status.json` adds `ransomware`, `moreScore`, `network` and `extensions` - counts only, never names,
   paths or addresses.
 
+## Scans while you're away, weekly reports, what changed (new in 1.3)
+
+![Reports (made-up data)](docs/reports.png)
+
+- **Run a quick scan when I'm away** (Settings, **off by default**, daily or weekly): when nobody has touched the mouse or
+  keyboard for 10 minutes (`GetLastInputInfo`), no game or full-screen app is running (Delta Force and the other known game
+  processes, Windows' "full-screen / busy" state, and the games Hallow Hub says are being played), the PC is plugged in
+  (`GetSystemPowerStatus`) and there's been no quick or full scan (Guard's or Defender's own) for a day or a week, Guard
+  asks Defender for a quick scan with `MpCmdRun` at the lowest (Idle) priority. It checks every 5 seconds while it runs and
+  stops it (`-Cancel`) as soon as you come back, a game starts or the PC is unplugged, then waits at least an hour before
+  trying again. You only hear from it if something is found. Game controllers don't count as input for Windows - that's why
+  a running game or full-screen app is checked separately. Defender's engine keeps its own CPU limit (Guard never changes it).
+- It needs Hallow Guard running in the tray. **Start with Windows** is off by default, so either open Guard after you sign in
+  or turn Start with Windows on - Settings says so when the scan is on and Start with Windows is off.
+- **Weekly safety report**: once a week while Guard runs (after the checks, and after a fresh low-priority look at the
+  leftovers - never while a game runs) it writes `%APPDATA%\HallowGuard\reports\<yyyy-ww>.json` (ISO week) and a short text
+  summary `<yyyy-ww>.txt`: the score then and now, what got fixed, new issues, what's still to do, scans (how many while you
+  were away), threats Defender found that week and what changed. The **Reports** page shows past weeks. One balloon - *"Your
+  weekly safety report: 88 (+3)"* - goes through Hallow Hub's icon only when Hub is running with its icon showing, Windows
+  notifications are on and *Tell me when the weekly safety report is ready* is on (default); never twice in a week and never
+  during a game.
+- **What changed since last week**: after each leftover hunt Guard keeps a small snapshot
+  (`%APPDATA%\HallowGuard\snapshots\<yyyy-ww>.json`, the 8 newest) of startup items, scheduled tasks, services, browser
+  extensions and programs open to the network - a 16-digit SHA-256 ID of what each one runs, its short name (your user folder
+  taken out) and whether it was suspicious. **No paths and no file contents.** The Leftovers page shows what's new and what's
+  gone since the newest snapshot of an earlier week and marks new rows; the report lists them too. A **new suspicious** item
+  goes to the top of the to-do list (it costs no points - it asks you to look).
+- Family link: the pipe adds `report` (the newest report), `report <yyyy-ww>` and `report list`; `status.json` adds
+  `lastReport` (week, score, previous score, delta, how many fixed / new issues / scans / threats / new and removed items -
+  counts only, no names), `changes` (counts), `awayScan`, `awayEvery` and `lastAwayScan`. Every older field is unchanged.
+
 ## What it won't do (on purpose)
 
 - It never switches Defender off or changes its settings, and never changes a security setting by itself. The one
@@ -103,7 +134,8 @@ never disables, replaces or weakens Defender.
 
 Download **Hallow Guard.zip** from the [latest release](https://github.com/Dom428/hallow-guard/releases/latest), unblock and
 extract it, and run `INSTALL.bat` (no admin needed). It installs to `%LOCALAPPDATA%\Programs\Hallow Guard` with Start menu
-and Desktop shortcuts. Settings > *Start with Windows* keeps it in the tray for Watch Downloads and the weekly reminder.
+and Desktop shortcuts. Settings > *Start with Windows* (off by default) keeps it in the tray for Watch Downloads, the scan
+while you're away, the weekly report and the weekly reminder.
 
 ## Build
 
@@ -120,9 +152,16 @@ running, stopped, stale) and fake browser profile folders (locked and broken fil
 Controlled folder access state, fake TCP/UDP table bytes and firewall rules, and fake Chrome / Edge / Opera / Firefox
 profiles with manifests and Preferences (and check the browser files are byte-for-byte unchanged).
 `tests\GuardTests.exe --real-timing` runs the real read-only 1.2 checks once and prints only timings and counts.
+The 1.3 tests use a fake clock, fake idle time, power and "game running", the stand-in `MpCmdRun` (which reports the
+priority it was given), fake leftovers / listeners / last week's snapshot and report, and a fake Hallow Hub on the test pipe
+that records the balloon - the scan while you're away is never started for real in a test.
 
 ## What's new
 
+- **1.3** - a quick scan while you're away (off by default: idle 10 minutes, no game, plugged in, low priority, stops when
+  you come back), a weekly safety report (score then vs now, fixed, new issues, scans, threats; a Reports page, the `report`
+  pipe command and `lastReport` in `status.json`, one balloon through Hallow Hub) and "what changed since last week" for the
+  leftovers (new and removed items, new suspicious ones first on the to-do list).
 - **1.2** - ransomware protection (Controlled folder access, read-only, with folders worth protecting and the game-save
   warning), a network view (apps connected right now, programs open to the network with signer and firewall answer,
   suspicious unsigned listeners) and browser extension risk (High / Medium / Low / Known with reasons) - new pages, and

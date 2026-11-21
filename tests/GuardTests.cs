@@ -32,7 +32,7 @@ namespace HallowGuard.Tests
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }
@@ -394,6 +394,8 @@ namespace HallowGuard.Tests
                 Ok(send("test-fix app:Keys") == "ok" && send("test-fix url:https://example.com/") == "ok", "app / url buttons in the test copy: nothing is started or opened");
                 var m = send("menu"); Ok(m != null && m.Contains("\"id\":\"quick\"") && m.Contains("\"label\":\"Quick scan\"") && m.Contains("\"id\":\"watch\""), "menu: Quick scan, Check my PC, Watch Downloads");
                 Ok(send("nonsense") == "error unknown command", "unknown command -> error");
+                // v1.3: the scan while you're away (fake idle / power / game / clock), the weekly report, what changed, the Hub balloon
+                V13Tests.Pipe(send, status, dir, mplog, Ok);
                 Ok(send("scan full") != null && send("scan full").StartsWith("error"), "only 'scan quick' can be started from outside");
                 Ok(send("scan quick") == "ok", "scan quick -> ok");
                 for (int i = 0; i < 50; i++) { st = status(); if (st != null && !(bool)st["scanning"] && st["lastGuardScanResult"] != null) break; Thread.Sleep(200); }
@@ -460,7 +462,12 @@ namespace HallowGuard.Tests
             if (args[0] == "-Cancel") { Console.WriteLine("Scan cancelled."); return 0; }
             int fi = Array.IndexOf(args, "-File"); var target = fi >= 0 && fi + 1 < args.Length ? args[fi + 1] : "the quick scan locations";
             Console.WriteLine("Scan starting...");
+            // v1.3: the priority Hallow Guard gave this process (the scan while you're away asks for Idle)
+            Thread.Sleep(250);
+            if (log != null) for (int i = 0; i < 20; i++) { try { File.AppendAllText(log, "priority=" + Process.GetCurrentProcess().PriorityClass + " for " + args[0] + " " + (fi >= 0 ? "file" : "quick") + "\r\n"); break; } catch { Thread.Sleep(50); } }
             if (target.Contains("slow")) Thread.Sleep(30000);
+            var td = Environment.GetEnvironmentVariable("HALLOW_GUARD_TESTDIR");
+            if (fi < 0 && td != null && File.Exists(Path.Combine(td, "slow-quick"))) Thread.Sleep(30000);
             Thread.Sleep(300);
             Console.WriteLine("Scan finished.");
             if (target.Contains("threat"))

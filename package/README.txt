@@ -8,6 +8,19 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.3
+- "Run a quick scan when I'm away" (Settings, off by default, daily or weekly): when you
+  haven't touched the mouse or keyboard for 10 minutes, no game or full-screen app is
+  running and the PC is plugged in, Microsoft Defender does a quick scan at low priority.
+  It stops as soon as you come back or a game starts. Hallow Guard has to be running in
+  the tray for this - turn on "Start with Windows" (off by default) if you want it daily.
+- Weekly safety report: your score then and now, what got fixed, new issues, scans and
+  threats - on the new Reports page and in %APPDATA%\HallowGuard\reports. One balloon
+  through Hallow Hub when Hub runs and notifications are on.
+- What changed since last week: new and removed startup items, tasks, services,
+  extensions and programs open to the network, marked on the Leftovers page. New
+  suspicious ones go to the top of the to-do list.
+
 WHAT'S NEW IN 1.2
 - Ransomware page: whether Windows' Controlled folder access is on, which folders are
   protected and which apps are allowed, in plain words - with folders worth protecting

@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.2";
+        public const string Version = "1.3";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -75,7 +75,7 @@ namespace HallowGuard
                 new ScanRecord { Kind = "custom", Target = @"D:\Old games", Start = now.AddDays(-80).ToString("o"), End = now.AddDays(-80).AddMinutes(9).ToString("o"), Result = "threats", Threats = 1, Note = "HackTool:Win32/Keygen" } };
             c.LoadSnapData();
             var w = new MainWindow(c);
-            foreach (var page in new[] { "overview", "scan", "history", "network", "extensions", "ransomware", "leftovers", "settings" })
+            foreach (var page in new[] { "overview", "scan", "history", "network", "extensions", "ransomware", "leftovers", "reports", "settings" })
             { w.Show(page); Snap.Save(w, Path.Combine(dir, page + ".png"), 1040, 720); }
             w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-full.png"), 1040, 0);
             foreach (var page in new[] { "network", "extensions", "ransomware" }) { w.Show(page); Snap.Save(w, Path.Combine(dir, page + "-full.png"), 1040, 0); }
@@ -83,6 +83,10 @@ namespace HallowGuard
             c.SetFamily(FakeFamily.NoneInstalled()); w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-no-apps.png"), 1040, 0);
             c.SetFamily(FakeFamily.Sample());
             c.SnapScanning(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-running.png"), 1040, 720);
+            w.Show("leftovers"); Snap.Save(w, Path.Combine(dir, "leftovers-full.png"), 1040, 0);
+            w.Show("reports"); Snap.Save(w, Path.Combine(dir, "reports-full.png"), 1040, 0);
+            c.S.AwayScan = true; c.S.AwayEvery = "daily"; c.AwayStatus = "you're using the PC"; w.Show("settings"); Snap.Save(w, Path.Combine(dir, "settings-away.png"), 1040, 0);
+            c.S.AwayScan = false; c.S.AwayEvery = "weekly"; c.AwayStatus = null;
             c.SnapLookup = new VtResult { Found = true, Malicious = 9, Suspicious = 2, Undetected = 61 }.Summary; w.Show("leftovers"); Snap.Save(w, Path.Combine(dir, "leftovers-lookup.png"), 1040, 720);
             Snap.Save(CrashNotice.Make(Path.Combine(dir, "example.txt")), Path.Combine(dir, "crash.png"), 440, 0);
         }
@@ -114,6 +118,12 @@ namespace HallowGuard
         public List<ExtInfo> Exts; public bool ExtReading; public DateTime? ExtsAt;
         public List<Check> MoreChecks; public int? MoreValue; public List<FolderHint> Folders;
         readonly INetSource netSource; readonly IExtSource extSource;
+        // v1.3: the quick scan while you're away, the weekly report, "what changed since last week"
+        public readonly IClock Clock; readonly IIdleSource idleSrc; readonly IPowerSource powerSrc; readonly IBusySource busySrc;
+        readonly AwayScanner away; public string AwayStatus;
+        public List<Dictionary<string, object>> Reports = new List<Dictionary<string, object>>(); public Dictionary<string, object> LastReport;
+        public SnapDiff Changes; public HashSet<string> NewIds = new HashSet<string>();
+        bool reportAfterHunt, reportForce, reportNotifying, toastsFake = true;
         DownloadWatcher watcher;
         public event Action<string> Changed;   // "checks", "threats", "leftovers", "scan", "settings"
 
@@ -128,7 +138,16 @@ namespace HallowGuard
             extSource = fake ? (IExtSource)new FakeExts() : new WindowsExts();
             famEnv = snapMode ? null : GuardSettings.TestDir != null ? FamilyEnv.ForTest(GuardSettings.TestDir) : FamilyEnv.Real();
             Store = GuardSettings.TestDir != null || snapMode ? StartupStore.ForTest(@"Software\HallowGuard\Test-" + (GuardSettings.TestDir == null ? "snap" : Path.GetFileName(GuardSettings.TestDir.TrimEnd('\\')))) : StartupStore.Real();
+            // v1.3: real clock / idle time / power / "is a game running", or fakes (snapshots and the test copy - set over the test pipe)
+            if (fake) { Clock = new FakeClock(); idleSrc = new FakeIdle(); powerSrc = new FakePower(); busySrc = new FakeBusy(); }
+            else { Clock = new RealClock(); idleSrc = new WindowsIdle(); powerSrc = new WindowsPower(); busySrc = new WindowsBusy(); }
+            away = new AwayScanner(Clock, idleSrc, powerSrc, busySrc)
+            {
+                On = () => S.AwayScan, Every = () => S.AwayEvery, LastScan = LastAnyScan, Scanning = () => Scanning, Engine = () => MpCmd.Find() != null,
+                Start = () => StartScan("quick", null, true), Stop = why => { awayStopWhy = why; Log("away scan stopped: " + why); CancelScan(); }
+            };
             if (snapMode) return;
+            LoadReports(); LoadChanges();
             Crash.Secrets = S.GetVtKey() == null ? new string[0] : new[] { S.GetVtKey() };
             Family.Serve("Guard", Command);
             if (!GuardSettings.Headless)
@@ -152,6 +171,13 @@ namespace HallowGuard
             var rm = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.05 : 3) };
             rm.Tick += (s, e) => { rm.Interval = TimeSpan.FromHours(1); CheckReminder(); }; rm.Start();
             if (S.WatchDownloads) StartWatching();
+            // v1.3: the away scan looks once a minute (every 5 s while its scan runs); the weekly report once an hour. Never in tests:
+            // the test copy only moves when the test pipe says so (fake clock, idle time, power and game).
+            if (GuardSettings.TestDir == null)
+            {
+                var at = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) }; at.Tick += (s, e) => { AwayTick(); at.Interval = TimeSpan.FromSeconds(away.Running ? 5 : 60); }; at.Start();
+                var wr = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) }; wr.Tick += (s, e) => { wr.Interval = TimeSpan.FromHours(1); MaybeReport(false); }; wr.Start();
+            }
             if (!trayOnly && !GuardSettings.Headless) ShowMain(null);
         }
         void Log(string s) { lock (log) { log.Add(DateTime.Now.ToString("HH:mm:ss") + " " + s); if (log.Count > 80) log.RemoveAt(0); } }
@@ -165,6 +191,8 @@ namespace HallowGuard
             SetFamily(FakeFamily.Sample());
             string e; ThreatList = threatSource.Read(out e);
             LeftoverList = leftoverSource.Hunt(null); HuntedAt = DateTime.Now.AddMinutes(-1);
+            Reports = FakeWeekly.Reports(DateTime.Now); LastReport = Reports[0]; Changes = FakeWeekly.Changes();
+            NewIds = new HashSet<string>(LeftoverList.Where(l => l.Name == "SysHelper" || l.Name == "Coupon Finder Update").Select(Snapshots.IdOf));
             WatchLog = new List<string> { DateTime.Now.AddHours(-3).ToString("HH:mm") + "  obs-studio-setup.exe - nothing found", DateTime.Now.AddHours(-1).ToString("HH:mm") + "  holiday-photos.zip - nothing found" };
             S.WatchDownloads = true;
             LastScanMessage = "Quick scan finished 2 days ago - nothing found.";
@@ -247,7 +275,15 @@ namespace HallowGuard
             }
             catch (Exception e) { Log("folders: " + e.Message); }
         }
-        public List<Check> Todo() { return FamilyScore.Todo((Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>()).Concat(MoreChecks ?? new List<Check>())); }
+        public List<Check> AllChecks() { return (Checks ?? new List<Check>()).Concat(AppChecks ?? new List<Check>()).Concat(MoreChecks ?? new List<Check>()).ToList(); }
+        // v1.3: new suspicious items since last week go first (they cost no points - they ask you to look)
+        public List<Check> Todo()
+        {
+            var l = FamilyScore.Todo(AllChecks());
+            var n = WeeklyReport.NewSuspiciousCheck(Changes);
+            if (n != null) { l.Insert(0, n); if (l.Count > 5) l.RemoveAt(l.Count - 1); }
+            return l;
+        }
 
         // ---- v1.2: network view (connection tables, listeners, firewall - read-only, nothing sent out)
         public void RefreshNetwork()
@@ -363,7 +399,7 @@ namespace HallowGuard
         // ---- scans (Defender's engine)
         public bool Scanning { get { return Current != null && !Current.Done; } }
         // returns null when it started (or was queued), or why not
-        public string StartScan(string kind, string target)
+        public string StartScan(string kind, string target, bool awayScan = false)
         {
             if (Scanning)
             {
@@ -373,9 +409,9 @@ namespace HallowGuard
             var exe = MpCmd.Find();
             if (exe == null) return "Microsoft Defender's scanner (MpCmdRun.exe) wasn't found. Is Defender installed?";
             if ((kind == "custom" || kind == "download") && (string.IsNullOrEmpty(target) || !(File.Exists(target) || Directory.Exists(target)))) return "That file or folder isn't there.";
-            var job = new ScanJob(exe, kind, target);
+            var job = new ScanJob(exe, kind, target) { Away = awayScan, Low = awayScan };
             job.Finished += j => ui.BeginInvoke(new Action(() => ScanFinished(j)));
-            Current = job; LastScanMessage = null; Log("scan " + kind + (target != null ? " " + target : ""));
+            Current = job; LastScanMessage = null; Log("scan " + kind + (target != null ? " " + target : "") + (awayScan ? " (while you're away, low priority)" : ""));
             job.Run(); WriteStatus(); Fire("scan");
             return null;
         }
@@ -383,10 +419,10 @@ namespace HallowGuard
         void ScanFinished(ScanJob j)
         {
             var rec = j.Record(); S.AddScan(rec); S.Save();
-            var what = j.Kind == "quick" ? "Quick scan" : j.Kind == "full" ? "Full scan" : j.Kind == "download" ? "Download check" : "Scan of " + Path.GetFileName(j.Target.TrimEnd('\\'));
+            var what = j.Away ? "The quick scan while you were away" : j.Kind == "quick" ? "Quick scan" : j.Kind == "full" ? "Full scan" : j.Kind == "download" ? "Download check" : "Scan of " + Path.GetFileName(j.Target.TrimEnd('\\'));
             if (j.Result == "clean") LastScanMessage = what + " finished - nothing found.";
             else if (j.Result == "threats") LastScanMessage = what + ": Defender found " + j.Threats + (j.Threats == 1 ? " threat" : " threats") + (j.Names.Count > 0 ? " (" + string.Join(", ", j.Names) + ")" : "") + ". Defender has dealt with it - see History.";
-            else if (j.Result == "cancelled") LastScanMessage = what + " cancelled.";
+            else if (j.Result == "cancelled") LastScanMessage = j.Away ? what + " stopped (" + (awayStopWhy ?? "cancelled") + "). It tries again the next time you're away." : what + " cancelled.";
             else LastScanMessage = what + " didn't finish: " + j.Error;
             Log("scan done " + j.Kind + " " + j.Result);
             if (j.Kind == "download")
@@ -398,7 +434,7 @@ namespace HallowGuard
                 Notify("Hallow Guard found something", (j.Kind == "download" ? Path.GetFileName(j.Target) + ": " : what + ": ") + "Defender found " + (j.Names.Count > 0 ? j.Names[0] : "a threat") + ". Open Hallow Guard > History.");
                 RefreshThreats();
             }
-            else if (j.Kind != "download" && main == null && j.Result != "cancelled") Notify("Hallow Guard", LastScanMessage);
+            else if (j.Kind != "download" && !j.Away && main == null && j.Result != "cancelled") Notify("Hallow Guard", LastScanMessage);
             if (Checks != null && Facts != null && (j.Kind == "quick" || j.Kind == "full")) { Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); Recount(); Fire("checks"); }
             WriteStatus(); Fire("scan");
             Tuple<string, string> next = null; lock (queue) if (queue.Count > 0) next = queue.Dequeue();
@@ -428,15 +464,22 @@ namespace HallowGuard
         public bool Watching { get { return watcher != null; } }
 
         // ---- leftover hunt
-        public void Hunt()
+        public void Hunt() { Hunt(false); }
+        public void Hunt(bool low)
         {
             if (Hunting) return; Hunting = true; HuntStep = "Starting..."; Fire("leftovers");
             var t = new Thread(() =>
             {
                 List<Leftover> list = null;
                 try { list = leftoverSource.Hunt(s => ui.BeginInvoke(new Action(() => { HuntStep = s; Fire("leftovers"); }))); } catch (Exception e) { Log("hunt failed: " + e.Message); }
-                ui.BeginInvoke(new Action(() => { LeftoverList = list ?? new List<Leftover>(); Hunting = false; HuntedAt = DateTime.Now; Log("hunt " + LeftoverList.Count); Fire("leftovers"); }));
-            }) { IsBackground = true, Name = "hunt" };
+                ui.BeginInvoke(new Action(() =>
+                {
+                    LeftoverList = list ?? new List<Leftover>(); Hunting = false; HuntedAt = DateTime.Now; Log("hunt " + LeftoverList.Count);
+                    if (list != null) TakeSnapshot();
+                    WriteStatus(); Fire("leftovers"); Fire("checks");
+                    if (reportAfterHunt) { reportAfterHunt = false; MaybeReport(reportForce); }
+                }));
+            }) { IsBackground = true, Name = "hunt", Priority = low ? ThreadPriority.BelowNormal : ThreadPriority.Normal };
             t.SetApartmentState(ApartmentState.STA); t.Start();
         }
         // your click on Disable / Restore (only your own Run key; machine-wide entries go to Windows' Startup apps page)
@@ -448,6 +491,119 @@ namespace HallowGuard
             Fire("leftovers"); return err;
         }
         public string RestoreStartup(string id) { var err = Store.Restore(id); Log("restore " + id + " " + (err ?? "ok")); Fire("leftovers"); return err; }
+
+        // ---- v1.3: "what changed since last week" (a small snapshot after each look: hashed IDs and short names, no file contents)
+        string SnapFile(string week) { return Path.Combine(Snapshots.Dir(GuardSettings.Dir), week + ".json"); }
+        void TakeSnapshot()
+        {
+            if (SnapMode || LeftoverList == null) return;
+            try
+            {
+                List<string> kinds; var items = Snapshots.Take(LeftoverList, Net, out kinds);
+                var week = Weeks.Key(Clock.Now);
+                Snapshots.Save(GuardSettings.Dir, week, items, kinds, Clock.Now);
+                SetChanges(CompareWithBefore(week, items, kinds));
+                Log("snapshot " + week + ": " + items.Count + " items" + (Changes == null ? " (the first one)" : ", " + Changes.New.Count + " new, " + Changes.Removed.Count + " removed since " + Changes.Since));
+            }
+            catch (Exception e) { Log("snapshot failed: " + e.Message); }
+        }
+        SnapDiff CompareWithBefore(string week, List<SnapItem> items, List<string> kinds)
+        {
+            var b = Snapshots.Before(GuardSettings.Dir, week); if (b == null) return null;
+            List<SnapItem> bi; List<string> bk;
+            return Snapshots.Load(SnapFile(b), out bi, out bk) ? Snapshots.Compare(bi, bk, items, kinds, b) : null;
+        }
+        void SetChanges(SnapDiff d) { Changes = d; NewIds = new HashSet<string>(d == null ? new string[0] : d.New.Select(x => x.Id)); }
+        void LoadChanges()
+        {
+            try { var week = Weeks.Key(Clock.Now); List<SnapItem> i; List<string> k; if (Snapshots.Load(SnapFile(week), out i, out k)) SetChanges(CompareWithBefore(week, i, k)); }
+            catch (Exception e) { Log("changes: " + e.Message); }
+        }
+
+        // ---- v1.3: the quick scan while you're away (off by default; needs Hallow Guard running in the tray)
+        string awayStopWhy;
+        public string AwayTick()
+        {
+            if (SnapMode) return "wait";
+            if (!S.AwayScan && !away.Running) { AwayStatus = "it's off"; return "wait"; }
+            string r; try { r = away.Tick(); } catch (Exception e) { r = "error"; away.Status = e.Message; }
+            AwayStatus = away.Status;
+            if (r != "wait" && r != "running") { Log("away scan: " + r + " - " + away.Status); WriteStatus(); Fire("settings"); }
+            return r;
+        }
+        public void SetAway(bool on, string every)
+        {
+            S.AwayScan = on; if (every != null) S.AwayEvery = every == "daily" ? "daily" : "weekly"; S.Save();
+            if (!on && away.Running) { away.Running = false; awayStopWhy = "you switched it off"; CancelScan(); }
+            AwayStatus = on ? "waiting until you're away" : "it's off"; WriteStatus(); Fire("settings");
+        }
+        public DateTime? LastAwayScan() { lock (S.Scans) foreach (var s in S.Scans) if (s.Away && (s.Result == "clean" || s.Result == "threats")) { DateTime t; if (DateTime.TryParse(s.End, null, System.Globalization.DateTimeStyles.RoundtripKind, out t)) return t; } return null; }
+
+        // ---- v1.3: the weekly safety report (reports\<yyyy-ww>.json + .txt), once a week while Hallow Guard runs
+        public void LoadReports() { try { Reports = WeeklyReport.List(GuardSettings.Dir); LastReport = Reports.FirstOrDefault(); } catch (Exception e) { Log("reports: " + e.Message); } }
+        // force = "Make it now" (or the test pipe): doesn't wait for a game to end
+        public void MaybeReport(bool force)
+        {
+            if (SnapMode) return;
+            var now = Clock.Now; var week = Weeks.Key(now);
+            if (!force && S.LastReportWeek == week) { NotifyReport(); return; }
+            if (Checks == null || Checking || ThreatsLoading || ScoreValue < 0) { Log("report: waiting for the checks"); return; }
+            var busy = busySrc.Busy(); if (busy != null && !force) { Log("report: waiting - " + busy); return; }
+            // a fresh look at the leftovers first (in the background, low priority), so the report can say what changed
+            if (LeftoverList == null || HuntedAt == null || (DateTime.Now - HuntedAt.Value).TotalHours > 12)
+            {
+                reportAfterHunt = true; reportForce = force;
+                if (!Hunting) Hunt(true);
+                return;
+            }
+            try
+            {
+                List<ScanRecord> scans; lock (S.Scans) scans = S.Scans.ToList();
+                var r = WeeklyReport.Build(new ReportInput
+                {
+                    Now = now, Week = week, Score = FamilyValue >= 0 ? FamilyValue : ScoreValue, Checks = AllChecks(), Scans = scans,
+                    DefenderQuick = Facts == null ? null : Facts.QuickScan, DefenderFull = Facts == null ? null : Facts.FullScan,
+                    Threats = ThreatError == null ? ThreatList : null, Changes = Changes, Previous = WeeklyReport.Before(GuardSettings.Dir, week)
+                });
+                WeeklyReport.Save(GuardSettings.Dir, r);
+                S.LastReportWeek = week; S.Save();
+                LoadReports(); Log("report " + week + ": " + J.Str(r, "summary"));
+                WriteStatus(); Fire("reports");
+                NotifyReport();
+            }
+            catch (Exception e) { Log("report failed: " + e.Message); }
+        }
+        public int ReportBalloons;
+        // one balloon a week, only through Hallow Hub (when it runs with its icon showing) and only with notifications on
+        void NotifyReport()
+        {
+            var r = LastReport; if (r == null || reportNotifying || SnapMode) return;
+            var week = J.Str(r, "week");
+            if (week != Weeks.Key(Clock.Now) || !S.ReportNotify || week == S.LastReportNotified) return;
+            var busy = busySrc.Busy(); var toasts = GuardSettings.Fake ? toastsFake : WeeklyReport.WindowsToastsOn();
+            var title = WeeklyReport.Headline(r); var text = J.Str(r, "summary") + " Open Hallow Guard > Reports.";
+            var last = S.LastReportNotified; reportNotifying = true;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                bool on = false, lists, sent = false;
+                try { var h = Family.Send("Hub", "tray-host", 1500); if (h != null && h.StartsWith("ok {")) HubHosting(h.Substring(3), out on, out lists); } catch { }
+                if (WeeklyReport.ShouldNotify(true, toasts, on, busy, week, last))
+                    sent = Family.Error(Family.Send("Hub", "notify Guard\t" + title + "\t" + text, 2000), "no answer") == null;
+                ui.BeginInvoke(new Action(() =>
+                {
+                    reportNotifying = false;
+                    if (sent) { S.LastReportNotified = week; S.Save(); ReportBalloons++; }
+                    Log("report balloon: " + (sent ? "sent through Hub" : "not sent (Hub icon " + (on ? "on" : "off") + ", notifications " + (toasts ? "on" : "off") + (busy != null ? ", " + busy : "") + ")"));
+                }));
+            });
+        }
+        string ReportCommand(string arg)
+        {
+            if (arg == "list") return "ok " + Family.Json(new Dictionary<string, object> { { "weeks", WeeklyReport.WeeksIn(GuardSettings.Dir) } });
+            if (arg.Length > 0 && !Weeks.Valid(arg)) return "error usage: report [yyyy-ww|list]";
+            var r = arg.Length == 0 ? LastReport : WeeklyReport.Load(GuardSettings.Dir, arg);
+            return r == null ? "error no report " + (arg.Length == 0 ? "yet" : "for " + arg) : "ok " + Family.Json(r);
+        }
 
         // ---- VirusTotal (hash only)
         public void LookUp(string file, Action<string> done)
@@ -636,7 +792,11 @@ namespace HallowGuard
                 // v1.2: ransomware protection, programs open to the network, browser extensions (counts only - no names, addresses or paths)
                 { "ransomware", Facts == null || Facts.Cfa == null ? null : Ransom.ModeWord(Facts.Cfa.Mode) }, { "moreScore", MoreValue },
                 { "network", Net == null || Net.Error != null ? null : new Dictionary<string, object> { { "apps", Net.Apps.Count }, { "listeners", Net.Listeners.Count }, { "suspicious", Net.Listeners.Count(l => l.V == Verdict.Suspicious) } } },
-                { "extensions", Exts == null ? null : new Dictionary<string, object> { { "total", Exts.Count }, { "high", Exts.Count(x => x.Risk == "High") }, { "medium", Exts.Count(x => x.Risk == "Medium") }, { "low", Exts.Count(x => x.Risk == "Low") }, { "known", Exts.Count(x => x.Known) } } } };
+                { "extensions", Exts == null ? null : new Dictionary<string, object> { { "total", Exts.Count }, { "high", Exts.Count(x => x.Risk == "High") }, { "medium", Exts.Count(x => x.Risk == "Medium") }, { "low", Exts.Count(x => x.Risk == "Low") }, { "known", Exts.Count(x => x.Known) } } },
+                // v1.3: the away scan, the newest weekly report (counts only) and what changed since last week (counts only)
+                { "awayScan", S.AwayScan }, { "awayEvery", S.AwayEvery }, { "lastAwayScan", LastAwayScan() == null ? null : Family.Time(LastAwayScan().Value) },
+                { "lastReport", WeeklyReport.Brief(LastReport) },
+                { "changes", Changes == null ? null : new Dictionary<string, object> { { "since", Changes.Since }, { "new", Changes.New.Count }, { "removed", Changes.Removed.Count }, { "newSuspicious", Changes.NewSuspicious } } } };
             if (GuardSettings.TestDir != null) d["test"] = TestState();
             return d;
         }
@@ -658,6 +818,8 @@ namespace HallowGuard
             if (AppChecks != null) t["appChecks"] =AppChecks.Select(x => x.Id + "=" + (x.NotInstalled ? "missing" : x.State.ToString()) + (x.Penalty > 0 ? " -" + x.Penalty : "")).ToArray();
             if (Checks != null) t["todoIds"] = Todo().Select(x => x.Id).ToArray();
             if (LeftoverList != null) t["verdicts"] = LeftoverList.GroupBy(x => x.Kind + "/" + x.V).Select(g => g.Key + ":" + g.Count()).ToArray();
+            t["away"] = away.Status; t["awayRunning"] = away.Running; t["reportBalloons"] = ReportBalloons; t["newIds"] = NewIds.Count;
+            if (Current != null) { t["jobAway"] = Current.Away; }
             if (Current != null) { t["job"] = Current.Kind; t["jobResult"] = Current.Result; t["jobThreats"] = Current.Threats; t["jobTarget"] = Current.Target; }
             lock (log) t["log"] = log.ToArray();
             return t;
@@ -675,6 +837,7 @@ namespace HallowGuard
                 case "scan":
                     if (arg != "quick") return "error only \"scan quick\" can be started from outside";
                     return OnUi(() => { var e = StartScan("quick", null); return e == null ? "ok" : "error " + e; });
+                case "report": return OnUi(() => ReportCommand(arg));
                 case "quit": new Thread(() => { Thread.Sleep(300); ui.BeginInvoke(new Action(Quit)); }) { IsBackground = true }.Start(); return "ok";
             }
             if (GuardSettings.TestDir != null && cmd.StartsWith("test-")) return OnUi(() => TestCommand(cmd, arg));
@@ -724,6 +887,20 @@ namespace HallowGuard
                 case "test-fix": RunFix(arg); return "ok";
                 case "test-autostart": SetStartWithWindows(arg == "on"); return "ok";
                 case "test-vtkey": S.SetVtKey(arg); S.Save(); return "ok";
+            }
+            // v1.3: the fake clock, idle time, power, game and notifications of the test copy
+            if (!GuardSettings.Fake) return "error unknown test command";
+            switch (cmd)
+            {
+                case "test-idle": ((FakeIdle)idleSrc).Value = TimeSpan.FromSeconds(double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)); return "ok";
+                case "test-power": ((FakePower)powerSrc).Value = arg == "ac" ? true : arg == "battery" ? false : (bool?)null; return "ok";
+                case "test-busy": ((FakeBusy)busySrc).Value = arg == "off" || arg.Length == 0 ? null : arg; return "ok";
+                case "test-clock": { var fc = (FakeClock)Clock; if (arg == "now") fc.Offset = TimeSpan.Zero; else fc.Offset = DateTime.Parse(arg, null, System.Globalization.DateTimeStyles.RoundtripKind) - DateTime.Now; return "ok"; }
+                case "test-away": { var p = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); SetAway(p.Length > 0 && p[0] == "on", p.Length > 1 ? p[1] : null); return "ok"; }
+                case "test-away-tick": { var r = AwayTick(); return "ok " + r + " - " + away.Status; }
+                case "test-report": MaybeReport(true); return "ok";
+                case "test-toasts": toastsFake = arg != "off"; return "ok";
+                case "test-reload": LoadChanges(); LoadReports(); WriteStatus(); return "ok";
             }
             return "error unknown test command";
         }

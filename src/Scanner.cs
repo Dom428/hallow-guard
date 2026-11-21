@@ -80,6 +80,7 @@ namespace HallowGuard
         public readonly string Kind, Target; public DateTime Start = DateTime.Now;
         public volatile bool Done; public string Result, Error; public int Threats; public List<string> Names = new List<string>();
         public readonly List<string> Lines = new List<string>();
+        public bool Away, Low;   // v1.3: the scan while you're away runs MpCmdRun at the lowest priority (Idle)
         public event Action<ScanJob> Finished;
         Process p; volatile bool cancelled; readonly string exe;
 
@@ -96,6 +97,7 @@ namespace HallowGuard
                     if (exe == null || !File.Exists(exe)) throw new Exception("Microsoft Defender's scanner (MpCmdRun.exe) wasn't found on this PC.");
                     var psi = new ProcessStartInfo(exe, MpCmd.Args(Kind, Target)) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.Default };
                     p = Process.Start(psi);
+                    if (Low) try { p.PriorityClass = ProcessPriorityClass.Idle; } catch { }
                     p.ErrorDataReceived += (s, e) => { if (e.Data != null) lock (Lines) Lines.Add(e.Data); };
                     p.BeginErrorReadLine();
                     string line; while ((line = p.StandardOutput.ReadLine()) != null) lock (Lines) Lines.Add(line);
@@ -123,7 +125,7 @@ namespace HallowGuard
         }
         public ScanRecord Record()
         {
-            return new ScanRecord { Kind = Kind, Target = Target, Start = Start.ToString("o"), End = DateTime.Now.ToString("o"), Result = Result, Threats = Threats, Note = Result == "threats" ? string.Join(", ", Names) : Error };
+            return new ScanRecord { Kind = Kind, Target = Target, Start = Start.ToString("o"), End = DateTime.Now.ToString("o"), Result = Result, Threats = Threats, Note = Result == "threats" ? string.Join(", ", Names) : Error, Away = Away };
         }
     }
 

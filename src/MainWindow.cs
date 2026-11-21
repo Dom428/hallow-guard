@@ -52,7 +52,7 @@ namespace HallowGuard
             nav.Clear();
             foreach (var p in new[] { Tuple.Create("overview", "Overview", "shield-halved"), Tuple.Create("scan", "Scan", "magnifying-glass"), Tuple.Create("history", "History", "clock-rotate-left"),
                 Tuple.Create("network", "Network", "globe"), Tuple.Create("extensions", "Extensions", "puzzle-piece"), Tuple.Create("ransomware", "Ransomware", "lock"),
-                Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("settings", "Settings", "gear") })
+                Tuple.Create("leftovers", "Leftovers", "broom"), Tuple.Create("reports", "Reports", "chart-line"), Tuple.Create("settings", "Settings", "gear") })
             {
                 var id = p.Item1;
                 var b = new Button { Style = Ui.S("Nav"), Content = Icons.WithText(p.Item3, p.Item2, 15, Ui.R("Text")), Margin = new Thickness(10, 0, 10, 0) };
@@ -79,7 +79,7 @@ namespace HallowGuard
 
         void OnChanged(string what)
         {
-            if (what == page || (what == "checks" && (page == "overview" || page == "ransomware")) ||(what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history")) Show(page);
+            if (what == page || (what == "checks" && (page == "overview" || page == "ransomware")) ||(what == "scan" && (page == "scan" || page == "overview")) || (what == "threats" && page == "history") || (what == "reports" && page == "overview")) Show(page);
         }
 
         public void Show(string p)
@@ -96,6 +96,7 @@ namespace HallowGuard
                 case "network": el = NetworkPage(); break;
                 case "extensions": el = ExtensionsPage(); break;
                 case "ransomware": el = RansomwarePage(); break;
+                case "reports": el = ReportsPage(); break;
                 case "settings": el = SettingsPage(); break;
                 default: page = "overview"; el = OverviewPage(); break;
             }
@@ -393,7 +394,7 @@ namespace HallowGuard
             return sp;
         }
 
-        // ---------------- Leftovers
+        // ---------------- Leftovers (v1.3: what changed since last week is in Pages13.cs)
         static readonly string[][] Groups = {
             new[] { "Startup", "Starts with Windows" }, new[] { "Task", "Scheduled tasks (not Microsoft's)" }, new[] { "Service", "Services (not Microsoft's)" },
             new[] { "Process", "Running unsigned from Temp, AppData or Downloads" }, new[] { "Extension", "Browser extensions" }, new[] { "Hosts", "Hosts file entries" } };
@@ -408,6 +409,7 @@ namespace HallowGuard
             {
                 var p = new StackPanel(); p.Children.Add(Ui.T("Looking at: " + c.HuntStep, 13, false, null, 8)); p.Children.Add(new ProgressBar { IsIndeterminate = !Snap.On, Value = 50 }); sp.Children.Add(Card(p));
             }
+            if (c.LeftoverList == null && c.Changes != null) sp.Children.Add(ChangesCard());
             if (c.LeftoverList != null)
             {
                 var all = c.LeftoverList;
@@ -415,6 +417,7 @@ namespace HallowGuard
                 sum.Children.Add(Chip(all.Count(x => x.V == Verdict.Suspicious) + " suspicious", Ui.Red)); sum.Children.Add(Chip(all.Count(x => x.V == Verdict.Unknown) + " unknown", Ui.Amber)); sum.Children.Add(Chip(all.Count(x => x.V == Verdict.KnownGood) + " known good", Ui.Green));
                 if (c.HuntedAt != null) { var ht = Ui.Muted("Checked " + Score.Ago(c.HuntedAt, DateTime.Now) + ".", 11.5); ht.VerticalAlignment = VerticalAlignment.Center; sum.Children.Add(ht); }
                 sp.Children.Add(sum);
+                if (c.Changes != null || c.HuntedAt != null) sp.Children.Add(ChangesCard());
                 foreach (var g in Groups)
                 {
                     var kind = g[0];
@@ -445,6 +448,8 @@ namespace HallowGuard
             var s = new StackPanel();
             var h = new DockPanel { Margin = new Thickness(0, 0, 0, 3) };
             var chip = Chip(l.VerdictText, VerdictBrush(l.V)); DockPanel.SetDock(chip, Dock.Left); h.Children.Add(chip);
+            bool isNew = (l.Kind == "Startup" || l.Kind == "Task" || l.Kind == "Service" || l.Kind == "Extension") && c.NewIds.Contains(Snapshots.IdOf(l));
+            if (isNew) { var nc = Chip("New since last week", Ui.Accent); DockPanel.SetDock(nc, Dock.Left); h.Children.Add(nc); }
             var nm = OneLine(Ui.T(l.Name, 13.5, true)); nm.VerticalAlignment = VerticalAlignment.Center; h.Children.Add(nm);
             s.Children.Add(h);
             s.Children.Add(Ui.Muted(l.Reason, 12.5, 2));
@@ -467,7 +472,8 @@ namespace HallowGuard
             if (l.AdminKey != null) btns.Children.Add(Ui.Btn("Open Startup apps", () => c.RunFix("ms-settings:startupapps"), false, "This entry is for every user (changing it needs admin) - Windows' Startup apps page can switch it off"));
             if (btns.Children.Count > 0) s.Children.Add(btns);
             result.Margin = new Thickness(0, 6, 0, 0); s.Children.Add(result);
-            return Card(s, 8);
+            var card = Card(s, 8); if (isNew) { card.BorderBrush = Ui.Accent; card.BorderThickness = new Thickness(1.5); }
+            return card;
         }
 
         // ---------------- Settings
@@ -476,11 +482,12 @@ namespace HallowGuard
             var sp = Page("Settings", null);
             var a = new StackPanel();
             a.Children.Add(Ui.Switch("Watch Downloads - scan new downloads once they've finished (off by default)", c.S.WatchDownloads, v => c.SetWatch(v)));
-            a.Children.Add(Ui.Switch("Start with Windows (in the tray) - needed for Watch Downloads and the weekly reminder", c.StartsWithWindows(), v => { c.SetStartWithWindows(v); c.WriteStatus(); }));
+            a.Children.Add(Ui.Switch("Start with Windows (in the tray, off by default) - needed for Watch Downloads, the scan while you're away, the weekly report and the reminder", c.StartsWithWindows(), v => { c.SetStartWithWindows(v); c.WriteStatus(); }));
             a.Children.Add(Ui.Switch("Remind me when nothing was scanned for a week", c.S.WeeklyReminder, v => { c.S.WeeklyReminder = v; c.S.Save(); c.WriteStatus(); }));
             a.Children.Add(Ui.Switch("Use the Hallow icon (when Hallow Hub runs, notifications come from its icon)", c.S.UseHallowIcon, v => { c.S.UseHallowIcon = v; c.S.Save(); c.CheckHost(); }));
             a.Children.Add(Ui.Switch("Use the Hallow accent (the colour picked in Hallow Toolkit)", c.S.UseHallowAccent, v => { c.S.UseHallowAccent = v; c.S.Save(); c.ApplyAccent(); }));
             sp.Children.Add(Card(a));
+            sp.Children.Add(AwayCard());
             // VirusTotal
             var vt = new StackPanel();
             var vh = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };

@@ -22,6 +22,7 @@ namespace HallowGuard
         [DataMember] public string Result;    // clean | threats | cancelled | error
         [DataMember] public int Threats;
         [DataMember] public string Note;
+        [DataMember] public bool Away;        // v1.3: the quick scan while you were away
     }
 
     [DataContract]
@@ -47,8 +48,14 @@ namespace HallowGuard
         [DataMember] public string LastCrashShown;
         [DataMember] public bool TrayHintShown;
         [DataMember] public List<ScanRecord> Scans;
+        // v1.3: a quick scan while you're away (off by default; "daily" or "weekly"), the weekly report and its one balloon
+        [DataMember] public bool AwayScan;
+        [DataMember] public string AwayEvery = "weekly";
+        [DataMember] public bool ReportNotify = true;
+        [DataMember] public string LastReportWeek;
+        [DataMember] public string LastReportNotified;
 
-        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; }
+        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; }
 
         public static GuardSettings Load()
         {
@@ -67,6 +74,7 @@ namespace HallowGuard
         void Fix()
         {
             if (Scans == null) Scans = new List<ScanRecord>();
+            if (AwayEvery != "daily") AwayEvery = "weekly";
             Scans.RemoveAll(x => x == null);
             if (Scans.Count > 30) Scans.RemoveRange(30, Scans.Count - 30);
         }
