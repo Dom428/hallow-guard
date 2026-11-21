@@ -140,10 +140,10 @@ namespace HallowGuard
         {
             if (Look.IsHud) return Hud.Tag(text, color);
             var b = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 2, 8, 2), Background = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            b.Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Ui.B("#16121C") };
+            b.Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Ui.OnStatus };
             return b;
         }
-        static Brush StateBrush(CheckState s) { return s == CheckState.Good ? Ui.Green : s == CheckState.Warn ? Ui.Amber : s == CheckState.Bad ? Ui.Red : s == CheckState.Info ? Ui.B("#7FB2F0") : Ui.R("Muted"); }
+        static Brush StateBrush(CheckState s) { return s == CheckState.Good ? Ui.Green : s == CheckState.Warn ? Ui.Amber : s == CheckState.Bad ? Ui.Red : s == CheckState.Info ? Ui.Info : Ui.R("Muted"); }
         static string StateIcon(CheckState s) { return s == CheckState.Good ? "circle-check" : s == CheckState.Warn ? "triangle-exclamation" : s == CheckState.Bad ? "circle-xmark" : s == CheckState.Info ? "circle-info" : "circle-question"; }
         static Brush ScoreBrush(int s) { return s >= 90 ? Ui.Green : s >= 70 ? Ui.Amber : Ui.Red; }
         static Brush VerdictBrush(Verdict v) { return v == Verdict.KnownGood ? Ui.Green : v == Verdict.Suspicious ? Ui.Red : Ui.Amber; }
@@ -212,7 +212,7 @@ namespace HallowGuard
                 {
                     i++; var row = new DockPanel();
                     var num = new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = StateBrush(ch.State), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
-                    num.Child = new TextBlock { Text = i.ToString(), FontWeight = FontWeights.Bold, Foreground = Ui.B("#16121C"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                    num.Child = new TextBlock { Text = i.ToString(), FontWeight = FontWeights.Bold, Foreground = Ui.OnStatus, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                     DockPanel.SetDock(num, Dock.Left); row.Children.Add(num);
                     var fb = FixButton(ch, true); DockPanel.SetDock(fb, Dock.Right); row.Children.Add(fb);
                     var txt = new StackPanel();
@@ -404,7 +404,7 @@ namespace HallowGuard
                 {
                     var s = new StackPanel();
                     var h = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-                    var sev = Chip(t.SeverityText, t.Severity >= 4 ? Ui.Red : t.Severity == 2 ? Ui.Amber : t.Severity == 1 ? Ui.B("#E8D27A") : Ui.R("Muted")); DockPanel.SetDock(sev, Dock.Left); h.Children.Add(sev);
+                    var sev = Chip(t.SeverityText, t.Severity >= 4 ? Ui.Red : t.Severity == 2 ? Ui.Amber : t.Severity == 1 ? Ui.Low : Ui.R("Muted")); DockPanel.SetDock(sev, Dock.Left); h.Children.Add(sev);
                     var when = Ui.Muted(When(t.When), 11.5); when.VerticalAlignment = VerticalAlignment.Center; when.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(when, Dock.Right); h.Children.Add(when);
                     var nm = OneLine(Ui.T(t.Kind + "  -  " + t.Name, 13.5, true)); nm.VerticalAlignment = VerticalAlignment.Center; h.Children.Add(nm);
                     s.Children.Add(h);

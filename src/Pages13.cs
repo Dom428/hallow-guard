@@ -142,7 +142,7 @@ namespace HallowGuard
                 line("circle-check", fixd.Count == 0 ? "Nothing fixed this week." : "Fixed: " + string.Join(", ", fixd.Select(x => J.Str(x, "title"))), fixd.Count == 0 ? Ui.R("Muted") : Ui.Green);
                 line("triangle-exclamation", newi.Count == 0 ? "No new issues." : "New: " + string.Join(", ", newi.Select(x => J.Str(x, "title"))), newi.Count == 0 ? Ui.R("Muted") : Ui.Amber);
             }
-            else line("circle-info", "Your first report - next week's compares with this one.", Ui.B("#7FB2F0"));
+            else line("circle-info", "Your first report - next week's compares with this one.", Ui.Info);
             if (full && issues.Count > 0) line("list", "Still to do: " + string.Join(", ", issues.Take(5).Select(x => J.Str(x, "title"))) + (issues.Count > 5 ? " and " + (issues.Count - 5) + " more" : ""), Ui.R("Muted"));
             var sc = J.Dict(r, "scans");
             if (sc != null)

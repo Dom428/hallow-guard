@@ -16,12 +16,17 @@ namespace HallowGuard
         public static SolidColorBrush B(string hex) { var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); b.Freeze(); return b; }
         public static Brush R(string key) { return (Brush)Application.Current.FindResource(key); }
         public static Style S(string key) { return (Style)Application.Current.FindResource(key); }
-        public static Brush Accent { get { return B(Program.AccentHex); } }
-        static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64");
+        public static Brush Accent { get { return B(Program.TextAccentHex); } }    // v1.8: in light mode the darkened accent (it's used for text, icons and thin lines)
+        static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64"), lgreen = B(Mode.LightGreen), lamber = B(Mode.LightAmber), lred = B(Mode.LightRed);
+        // v1.8: the family's light status colours in light mode; Info (blue) and Low (yellow) too
+        public static Brush Info { get { return B(Mode.IsLight ? Mode.LightInfo : "#7FB2F0"); } }
+        public static Brush Low { get { return B(Mode.IsLight ? Mode.LightLow : "#E8D27A"); } }
+        // text on a filled status chip / badge: dark on the bright dark-mode colours, white on the deeper light-mode ones
+        public static Brush OnStatus { get { return B(Mode.IsLight ? "#FFFFFF" : "#16121C"); } }
         // the HUD looks take their status colours from the HUD palette (v1.7: Hallow console uses the family ones; Cyber blue its neon ones)
-        public static Brush Green { get { return Look.IsHud ? Hud.Green : green; } }
-        public static Brush Amber { get { return Look.IsHud ? Hud.Amber : amber; } }
-        public static Brush Red { get { return Look.IsHud ? Hud.Red : red; } }
+        public static Brush Green { get { return Look.IsHud ? Hud.Green : Mode.IsLight ? lgreen : green; } }
+        public static Brush Amber { get { return Look.IsHud ? Hud.Amber : Mode.IsLight ? lamber : amber; } }
+        public static Brush Red { get { return Look.IsHud ? Hud.Red : Mode.IsLight ? lred : red; } }
         // the highlight for icons and headings: the HUD glow (the Hallow accent in Hallow console, cyan in Cyber blue), the accent in classic
         public static Brush Hi { get { return Look.IsHud ? Hud.Glow : Accent; } }
 
@@ -30,10 +35,15 @@ namespace HallowGuard
             w.Title = title; w.Width = width; w.SizeToContent = SizeToContent.Height;
             Restyle(w); w.FontSize = 12.5;
             try { w.Icon = AppIcon(); } catch { }
-            w.SourceInitialized += (s, e) => { int dark = 1; DwmSetWindowAttribute(new WindowInteropHelper(w).Handle, 20, ref dark, 4); };
+            w.SourceInitialized += (s, e) => TitleBar(w);
+        }
+        // v1.8: the Windows title bar dark or light to match (DWMWA_USE_IMMERSIVE_DARK_MODE = 20); again when the mode changes
+        public static void TitleBar(Window w)
+        {
+            try { var h = new WindowInteropHelper(w).Handle; if (h == IntPtr.Zero) return; int dark = Mode.IsLight ? 0 : 1; DwmSetWindowAttribute(h, 20, ref dark, 4); } catch { }
         }
         // the window's colours and font for the current look (again after Settings > Look changes)
-        public static void Restyle(Window w) { w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = Look.IsHud ? Hud.Body : new FontFamily("Segoe UI"); }
+        public static void Restyle(Window w) { w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = Look.IsHud ? Hud.Body : new FontFamily("Segoe UI"); TitleBar(w); }
         static ImageSource icon;
         public static ImageSource AppIcon()
         {

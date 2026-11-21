@@ -130,6 +130,17 @@ namespace HallowGuard
                 cardTop = Hex("#F20E1828"); cardBottom = Hex("#F20A111C"); discIn = Hex("#0F2436"); discMid = Hex("#0A1422"); discOut = Hex("#070B12");
                 GlowHex = "#22E1FF";
             }
+            else if (Mode.IsLight)
+            {
+                // v1.8: Hallow console in light - the family light palette; the accent darkened for lines and text (>= 4.5:1), no glows
+                Bg = B(Mode.LightBg); Panel = B(Mode.LightPanel); PanelHi = B(Mode.LightPanel2); Line = B(Mode.LightLine); LineDim = B("#E6E0EF");
+                Text = B(Mode.LightText); Muted = B(Mode.LightMuted); Lilac = B(Mode.LightLilac); Green = B(Mode.LightGreen); Amber = B(Mode.LightAmber); Red = B(Mode.LightRed); Info = B(Mode.LightLilac); Low = B(Mode.LightLow);
+                Console = B("#FBFAFD"); Dim = B("#E2DCEC"); Side = B("#FFFFFF"); Well = B("#F3F0F8");
+                cardTop = Hex("#FFFFFF"); cardBottom = Hex("#FCFBFE"); discIn = Hex("#FFFFFF"); discMid = Hex("#F8F6FB"); discOut = Hex("#EEEAF5");
+                GlowHex = Mode.TextAccent(Valid(accent) ? accent.ToUpperInvariant() : Accent.Default);
+                Glow = B(GlowHex);
+                Node = new SolidColorBrush(Mix(Hex("#FFFFFF"), Hex(GlowHex), 0.10)); Node.Freeze();
+            }
             else
             {
                 // the family's dark purple-black (Mixer, Hub, Assist...: #16121C / #211B2A / #3A3248) and its status colours
@@ -141,8 +152,10 @@ namespace HallowGuard
                 Glow = B(GlowHex);
                 Node = new SolidColorBrush(Mix(Hex("#14101B"), Hex(GlowHex), 0.16)); Node.Freeze();
             }
-            cardBg = cardLine = hex = null;    // rebuilt with the new colours
+            cardBg = cardLine = hex = vignette = scan = null;    // rebuilt with the new colours
         }
+        // a glow, or none in light mode (the family spec: no glows on light - the accent line/border it sits on stays)
+        public static Effect Fx(Effect e) { return Mode.IsLight ? null : e; }
         // the card gradient's ends (as solid colours, for the contrast test)
         public static Brush CardTop { get { return B("#" + cardTop.R.ToString("X2") + cardTop.G.ToString("X2") + cardTop.B.ToString("X2")); } }
         public static Brush CardBottom { get { return B("#" + cardBottom.R.ToString("X2") + cardBottom.G.ToString("X2") + cardBottom.B.ToString("X2")); } }
@@ -202,8 +215,8 @@ namespace HallowGuard
             var g = new Grid { Width = size * 2.6, Height = size * 2.6, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
             var c = C(color);
             var glow = new RadialGradientBrush(); glow.GradientStops.Add(new GradientStop(Color.FromArgb(150, c.R, c.G, c.B), 0)); glow.GradientStops.Add(new GradientStop(Color.FromArgb(40, c.R, c.G, c.B), 0.45)); glow.GradientStops.Add(new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 1)); glow.Freeze();
-            g.Children.Add(new Ellipse { Fill = glow });
-            g.Children.Add(new Ellipse { Width = size, Height = size, Fill = color, Stroke = Alpha(Brushes.White, 0.55), StrokeThickness = 0.8 });
+            if (!Mode.IsLight) g.Children.Add(new Ellipse { Fill = glow });
+            g.Children.Add(new Ellipse { Width = size, Height = size, Fill = color, Stroke = Mode.IsLight ? Alpha(Brushes.Black, 0.25) : Alpha(Brushes.White, 0.55), StrokeThickness = 0.8 });
             return g;
         }
 
@@ -279,7 +292,9 @@ namespace HallowGuard
             {
                 if (vignette != null) return vignette;
                 var v = new RadialGradientBrush { Center = new Point(0.55, 0.35), GradientOrigin = new Point(0.55, 0.35), RadiusX = 0.85, RadiusY = 0.95 };
-                v.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0.45)); v.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0, 0, 0), 1)); v.Freeze();
+                // light: a faint lilac edge instead of the dark vignette
+                var e = Mode.IsLight && !Look.IsCyberBlue ? Color.FromArgb(26, 0x7A, 0x5C, 0xC0) : Color.FromArgb(150, 0, 0, 0);
+                v.GradientStops.Add(new GradientStop(Color.FromArgb(0, e.R, e.G, e.B), 0.45)); v.GradientStops.Add(new GradientStop(e, 1)); v.Freeze();
                 return vignette = v;
             }
         }
@@ -288,7 +303,7 @@ namespace HallowGuard
             get
             {
                 if (scan != null) return scan;
-                var d = new GeometryDrawing(Alpha(Brushes.Black, 0.45), null, new RectangleGeometry(new Rect(0, 0, 4, 1)));
+                var d = new GeometryDrawing(Mode.IsLight && !Look.IsCyberBlue ? Alpha(Lilac, 0.12) : Alpha(Brushes.Black, 0.45), null, new RectangleGeometry(new Rect(0, 0, 4, 1)));
                 var g = new DrawingGroup(); g.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 4, 3)))); g.Children.Add(d);
                 var b = new DrawingBrush(g) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 4, 3), ViewportUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
                 b.Freeze(); return scan = b;
@@ -343,6 +358,7 @@ namespace HallowGuard
                 // the glow (behind the segments)
                 var glow = new Ellipse { Width = 2 * rSeg, Height = 2 * rSeg, Stroke = on, StrokeThickness = th + 6, Opacity = 0.35, Effect = new BlurEffect { Radius = 14 } };
                 Canvas.SetLeft(glow, cx - rSeg); Canvas.SetTop(glow, cy - rSeg);
+                if (Mode.IsLight) { glow.Effect = null; glow.StrokeThickness = th + 2; glow.Opacity = 0.18; }   // light: a soft halo ring, no blur glow
                 if (score >= 90) { c.Children.Add(glow); Pulse = Animate(glow, UIElement.OpacityProperty, () => Loop(0.15, 0.55, 1.6, true), 0.4); }
                 // ticks: 72, every 6th longer
                 var ticks = new StreamGeometry(); var major = new StreamGeometry();
@@ -388,7 +404,7 @@ namespace HallowGuard
                     var gw = C(Glow); fill.GradientStops.Add(new GradientStop(Color.FromArgb(110, gw.R, gw.G, gw.B), 0)); fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, gw.R, gw.G, gw.B), 1)); fill.Freeze();
                     var sw = new Canvas { Width = size, Height = size, IsHitTestVisible = false };
                     sw.Children.Add(new Path { Data = wedge, Fill = fill });
-                    sw.Children.Add(new Line { X1 = cx, Y1 = cy, X2 = cx, Y2 = cy - rs, Stroke = Glow, StrokeThickness = 1.6, Effect = new DropShadowEffect { Color = C(Glow), BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 } });
+                    sw.Children.Add(new Line { X1 = cx, Y1 = cy, X2 = cx, Y2 = cy - rs, Stroke = Glow, StrokeThickness = 1.6, Effect = Fx(new DropShadowEffect { Color = C(Glow), BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 }) });
                     var rot = new RotateTransform(35, cx, cy); sw.RenderTransform = rot; c.Children.Add(sw);
                     Sweep = Animate(rot, RotateTransform.AngleProperty, () => Loop(0, 360, 3.2), 35);
                 }

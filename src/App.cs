@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.7.0.0")]
-[assembly: AssemblyFileVersion("1.7.0.0")]
+[assembly: AssemblyVersion("1.8.0.0")]
+[assembly: AssemblyFileVersion("1.8.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.7";
+        public const string Version = "1.8";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -57,29 +57,45 @@ namespace HallowGuard
         public static string AccentHex = Accent.Default;
         // look: "console" / "classic" / "cyberblue", or null = the one in Settings. A HUD look's dictionary goes over the classic
         // one (same keys win). v1.7: Hallow console gets the Hallow accent swapped in, like the classic theme; Cyber blue never does.
-        public static void LoadTheme(Application app, string look = null)
+        // v1.8: light: null = from the settings + theme.json + Windows (Mode.Resolve); --snap forces it. Cyber blue is always dark.
+        public static string TextAccentHex = Accent.Default;
+        public static void LoadTheme(Application app, string look = null, bool? light = null)
         {
             var st = GuardSettings.Load();
             AccentHex = Accent.Current(st.UseHallowAccent);
             HallowGuard.Look.Current = HallowGuard.Look.Normalize(look ?? st.Look);
+            Mode.IsLight = !HallowGuard.Look.IsCyberBlue && (light ?? Mode.Resolve(HallowGuard.Look.Current, st.Mode, Accent.ReadMode(), Mode.Sys));
+            TextAccentHex = Mode.IsLight ? Mode.TextAccent(AccentHex) : AccentHex;
             Hud.Use(HallowGuard.Look.Current, AccentHex);
             app.Resources.MergedDictionaries.Clear();
-            app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(Res("HallowGuard.Theme.xaml"), AccentHex)));
+            var classic = Res("HallowGuard.Theme.xaml");
+            if (Mode.IsLight) classic = Mode.LightClassic(classic, TextAccentHex);
+            app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(classic, AccentHex)));
             if (HallowGuard.Look.IsCyberBlue) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Res("HallowGuard.ThemeCyber.xaml")));
-            else if (HallowGuard.Look.IsHud) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(ConsoleTheme(Hud.GlowHex)));
+            else if (HallowGuard.Look.IsHud) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(ConsoleTheme(Mode.IsLight ? AccentHex : Hud.GlowHex)));
         }
-        // the Hallow console dictionary with the accent swapped in (the readable accent: a very dark one is lightened)
-        public static string ConsoleTheme(string accent) { return Accent.ApplyTo(Res("HallowGuard.ThemeConsole.xaml"), accent); }
+        // the Hallow console dictionary with the accent swapped in (dark: the readable accent - a very dark one is lightened;
+        // v1.8 light: the real accent for fills and tints, the darkened one for text and thin lines)
+        public static string ConsoleTheme(string accent)
+        {
+            var x = Res("HallowGuard.ThemeConsole.xaml");
+            if (Mode.IsLight) x = Mode.LightConsole(x, Mode.TextAccent(accent));
+            return Accent.ApplyTo(x, accent);
+        }
         static string Res(string name) { using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) using (var r = new StreamReader(s)) return r.ReadToEnd(); }
 
         // --snap <folder>: every page rendered off-screen with made-up data (never this PC's real files, names or settings)
         // v1.7: every look - Hallow console (the default) in the folder itself, Hallow classic in <folder>\classic, Cyber blue in
         // <folder>\cyberblue
+        // v1.8: and both modes - the light versions of Hallow console and Hallow classic in <folder>\light and <folder>\classic-light
         static void SnapAll(string dir)
         {
-            LoadTheme(Application.Current, HallowGuard.Look.ConsoleName); SnapSet(dir);
-            LoadTheme(Application.Current, HallowGuard.Look.ClassicName); SnapSet(Path.Combine(dir, "classic"));
-            LoadTheme(Application.Current, HallowGuard.Look.CyberBlueName); SnapSet(Path.Combine(dir, "cyberblue"));
+            LoadTheme(Application.Current, HallowGuard.Look.ConsoleName, false); SnapSet(dir);
+            LoadTheme(Application.Current, HallowGuard.Look.ClassicName, false); SnapSet(Path.Combine(dir, "classic"));
+            LoadTheme(Application.Current, HallowGuard.Look.CyberBlueName, false); SnapSet(Path.Combine(dir, "cyberblue"));
+            LoadTheme(Application.Current, HallowGuard.Look.ConsoleName, true); SnapSet(Path.Combine(dir, "light"));
+            LoadTheme(Application.Current, HallowGuard.Look.ClassicName, true); SnapSet(Path.Combine(dir, "classic-light"));
+            LoadTheme(Application.Current, HallowGuard.Look.CyberBlueName, true); SnapSet(Path.Combine(dir, "cyberblue-light"));   // must look the same as cyberblue
         }
         static void SnapSet(string dir)
         {
@@ -183,6 +199,7 @@ namespace HallowGuard
                 SetupTray();
                 var ht = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; ht.Tick += (s, e) => CheckHost(); ht.Start(); CheckHost();
                 accentWatch = Accent.Watch(() => ui.BeginInvoke(new Action(ApplyAccent)));
+                modePoll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) }; modePoll.Tick += (s, e) => ApplyAccent(); modePoll.Start();
                 if (GuardSettings.TestDir == null || Environment.GetEnvironmentVariable("HALLOW_GUARD_API") != null)
                 {
                     var upd = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -253,6 +270,12 @@ namespace HallowGuard
             if (HallowGuard.Look.Current == S.Look) return;
             Program.LoadTheme(Application.Current, S.Look);
             if (main != null) main.Rebuild();
+        }
+        // v1.8: Settings > Look > Light or dark: "follow" (Hallow's switch, default) / "light" / "dark"
+        public void SetMode(string mode)
+        {
+            S.Mode = Mode.Own(mode); S.Save();
+            ApplyAccent(true);
         }
 
         // ---- window
@@ -785,6 +808,16 @@ namespace HallowGuard
             var quit = new WF.ToolStripMenuItem("Quit"); quit.Click += (s, e) => Quit(); menu.Items.Add(quit);
             tray.ContextMenuStrip = menu;
             tray.MouseClick += (s, e) => { if (e.Button == WF.MouseButtons.Left) ShowMain(null); };
+            StyleTrayMenu();
+        }
+        // v1.8: the tray menu in the app's colours - light or dark (Cyber blue: dark)
+        void StyleTrayMenu()
+        {
+            if (tray == null || tray.ContextMenuStrip == null) return;
+            var m = tray.ContextMenuStrip; var p = TrayColors.For(Mode.IsLight);
+            m.Renderer = new WF.ToolStripProfessionalRenderer(p) { RoundedEdges = false };
+            m.BackColor = p.Back; m.ForeColor = p.Fore;
+            foreach (WF.ToolStripItem it in m.Items) { it.BackColor = p.Back; it.ForeColor = p.Fore; }
         }
         public void CheckHost()
         {
@@ -828,12 +861,21 @@ namespace HallowGuard
             });
         }
         FileSystemWatcher accentWatch;
-        public void ApplyAccent()
+        // theme.json changed (accent or v1.8's mode), Windows' app mode changed (the poll), or a setting: re-theme only if something differs
+        public void ApplyAccent() { ApplyAccent(false); }
+        public void ApplyAccent(bool force)
         {
-            var a = Accent.Current(S.UseHallowAccent); if (a == Program.AccentHex) return;
+            var a = Accent.Current(S.UseHallowAccent);
+            var light = Mode.Resolve(S.Look, S.Mode, Accent.ReadMode(), Mode.Sys);
+            if (!force && a == Program.AccentHex && light == Mode.IsLight) return;
             Program.LoadTheme(Application.Current, S.Look);
             if (main != null) main.Rebuild();
+            StyleTrayMenu();
+            Log("theme: accent " + Program.AccentHex + ", " + (Mode.IsLight ? "light" : "dark"));
         }
+        // the poll for "Same as Windows" (and a theme.json made after start, which the folder watcher can't see): cheap - one
+        // registry value and one small file, every 4 s, only re-themes when the answer changes
+        DispatcherTimer modePoll;
         GhRelease pending; public GhRelease PendingUpdate { get { return pending; } }
         public void CheckForUpdate(bool manual)
         {

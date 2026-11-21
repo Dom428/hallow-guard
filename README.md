@@ -156,6 +156,19 @@ rest as one family - same layout, same motion:
 
 ![Hallow classic (made-up data)](docs/classic.png)
 
+## Light and dark mode (new in 1.8)
+
+![Overview in Hallow console, light (made-up data)](docs/overview-light.png)
+
+- **Hallow console** and **Hallow classic** each have a light version: the family's light palette (#F6F4FA background, white
+  panels, #1E1A26 text, lilac #7A5CC0), the Hallow accent darkened for text and thin lines so it reads at 4.5:1 or more, filled
+  buttons keep the real accent, and no glows - each glow's accent line or border stays. **Cyber blue** stays dark only.
+- **Follows Hallow** by default: `mode` in `%APPDATA%Hallow	heme.json` (`dark` / `light` / `system`, written by Hallow
+  Toolkit's *Light / Dark / Same as Windows* switch; missing = dark). *Same as Windows* follows Windows' app mode
+  (`AppsUseLightTheme`) live. Guard only reads theme.json, and changes apply without a restart.
+- **Settings > Look > Light or dark**: *Follow Hallow* (default), *Light* or *Dark* - just for Guard, saved in its own settings.
+- The Windows title bar, the tray menu, scrollbars, menus and tooltips follow the mode.
+
 ## Scans while you're away, weekly reports, what changed (new in 1.3)
 
 ![Reports (made-up data)](docs/reports.png)
@@ -210,7 +223,7 @@ while you're away, the weekly report and the weekly reminder.
 .\build.ps1          # HallowGuard.exe with the C# compiler that ships with Windows (.NET Framework 4.8)
 .\build.ps1 -Tests   # also tests\GuardTests.exe
 .\tests\GuardTests.exe
-.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data (Hallow console; classic\ and cyberblue\ subfolders)
+.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data (Hallow console; classic\ and cyberblue\ subfolders; the light versions in light\ and classic-light\)
 ```
 
 The tests never run a real Defender scan: they use a stand-in `MpCmdRun`, made-up system checks, a local stand-in for
@@ -229,6 +242,9 @@ prints only timings, check IDs and states.
 
 ## What's new
 
+- **1.8** - Light and dark mode: Hallow console and Hallow classic each get a light version (the family's light palette, the
+  accent darkened for text, no glows); Cyber blue stays dark. Follows Hallow Toolkit's *Light / Dark / Same as Windows* switch
+  live, or pick Light / Dark just for Guard in Settings > Look. The title bar and tray menu match.
 - **1.7** - Guard looks like a Hallow app again: the console look is repainted in the family's dark purple-black with the
   Hallow accent as its glow (following Hallow Toolkit's accent live), lilac secondary lines and the family's green / amber /
   red. Same radar, brackets, codes, scan console, hex grid, telemetry and motion. Looks: *Hallow console* (default), *Hallow

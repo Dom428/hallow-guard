@@ -97,7 +97,7 @@ namespace HallowGuard
         }
 
         // ---------------- Extensions
-        static Brush RiskBrush(string r) { return r == "High" ? Ui.Red : r == "Medium" ? Ui.Amber : r == "Low" ? Ui.Green : Ui.B("#7FB2F0"); }
+        static Brush RiskBrush(string r) { return r == "High" ? Ui.Red : r == "Medium" ? Ui.Amber : r == "Low" ? Ui.Green : Ui.Info; }
         FrameworkElement ExtensionsPage()
         {
             var sp = Page("Extensions", "Browser extensions can see a lot: some can read every page you open. Hallow Guard reads each extension's permissions in Chrome, Edge, Brave, Opera and Firefox and rates it - it never changes your browsers.");
@@ -113,7 +113,7 @@ namespace HallowGuard
             if (all.Count == 0) sp.Children.Add(Card(Ui.T("No browser extensions found.", 13, false, Ui.Green), 8));
             foreach (var e in all) sp.Children.Add(ExtRow(e));
             var how = new StackPanel();
-            how.Children.Add(IconRow("circle-info", Ui.B("#7FB2F0"), "How the rating works", 13.5));
+            how.Children.Add(IconRow("circle-info", Ui.Info, "How the rating works", 13.5));
             how.Children.Add(Ui.Muted("High: not from the browser's store with access to every site, a developer-tool (debugger) extension on every site, or a lot of sensitive access together. Medium: broad access - normal for ad blockers and password managers, but worth knowing. Low: limited access. Known: Hallow Keys and Hallow Shield, which need every site to fill passwords and block ads. Not updated for a year counts a little too (the date comes from the browser, or the extension's folder when the browser doesn't say).", 12, 4));
             how.Children.Add(Ui.Muted("To remove an extension, open the browser's extensions page and click Remove - Hallow Guard never removes or switches off extensions itself.", 12, 0));
             sp.Children.Add(Card(how, 8));
@@ -167,7 +167,7 @@ namespace HallowGuard
             {
                 var row = new StackPanel();
                 var hd = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
-                var col = hnt.Status == "protected" ? Ui.Green : hnt.Status == "suggested" ? Ui.Amber : hnt.Status == "covered" ? Ui.B("#7FB2F0") : Ui.R("Line");
+                var col = hnt.Status == "protected" ? Ui.Green : hnt.Status == "suggested" ? Ui.Amber : hnt.Status == "covered" ? Ui.Info : Ui.R("Line");
                 var word = hnt.Status == "protected" ? "Protected" : hnt.Status == "suggested" ? "Suggested" : hnt.Status == "covered" ? "Covered" : "When it's on";
                 var chip = Chip(word, col); DockPanel.SetDock(chip, Dock.Left); hd.Children.Add(chip);
                 if (hnt.Status == "default") ((TextBlock)((Border)chip).Child).Foreground = Ui.R("Text");

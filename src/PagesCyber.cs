@@ -37,7 +37,7 @@ namespace HallowGuard
             string hud; if (!HudTitles.TryGetValue(title, out hud)) hud = title;
             sp.Children.Add(Hud.M("GUARD://" + title.Split(' ')[0].ToLowerInvariant(), 10.5, Hud.Alpha(Hud.Lilac, 0.9), 2));
             sp.Children.Add(Hud.Caps(hud, 23, Hud.Text, 0));
-            sp.Children.Add(new Rectangle { Width = 56, Height = 2, Fill = Hud.Glow, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 12), Effect = new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 8, ShadowDepth = 0 } });
+            sp.Children.Add(new Rectangle { Width = 56, Height = 2, Fill = Hud.Glow, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 12), Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 8, ShadowDepth = 0 }) });
             if (sub != null) sp.Children.Add(Ui.Muted(sub, 12.5, 14));
             return sp;
         }
@@ -359,7 +359,7 @@ namespace HallowGuard
             var g = new Grid { Margin = new Thickness(0, 0, 0, 10) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); g.ColumnDefinitions.Add(new ColumnDefinition());
             var tl = new StackPanel { Margin = new Thickness(0, 0, 28, 0) };
-            var timer = new TextBlock { Text = Clock(j.Elapsed), FontFamily = Hud.Mono, FontSize = 40, FontWeight = FontWeights.SemiBold, Foreground = Hud.Text, Effect = new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.6 } };
+            var timer = new TextBlock { Text = Clock(j.Elapsed), FontFamily = Hud.Mono, FontSize = 40, FontWeight = FontWeights.SemiBold, Foreground = Hud.Text, Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.6 }) };
             AutomationProperties.SetName(timer, "Elapsed time");
             tl.Children.Add(Hud.M("ELAPSED", 10, Hud.Muted)); tl.Children.Add(timer);
             tl.Children.Add(Hud.M(j.Kind == "full" ? "a full scan can take an hour or more" : j.Kind == "quick" ? "usually a few minutes" : "one folder or file", 10.5, Hud.Muted));
@@ -501,7 +501,7 @@ namespace HallowGuard
         {
             card.BorderBrush = Hud.Alpha(color, 0.65);
             var g = card.Child as Grid; if (g == null) return;
-            var edge = new Rectangle { Width = 3, Fill = color, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-1, 6, 0, 6), IsHitTestVisible = false, Effect = new DropShadowEffect { Color = Hud.C(color), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.9 } };
+            var edge = new Rectangle { Width = 3, Fill = color, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(-1, 6, 0, 6), IsHitTestVisible = false, Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(color), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.9 }) };
             g.Children.Add(edge);
             if (pulse) Anim.Add(Hud.Animate(edge, UIElement.OpacityProperty, () => Hud.Loop(1, 0.3, 0.9, true), 1));
         }
@@ -566,7 +566,7 @@ namespace HallowGuard
                 double r = 4 + Math.Min(5, a.Remotes.Count);
                 var ln = new Line { X1 = cx, Y1 = cy, X2 = x, Y2 = y, Stroke = Hud.Alpha(col, bad ? 0.8 : 0.5), StrokeThickness = 1 + Math.Min(1.5, a.Remotes.Count / 3.0), StrokeDashArray = new DoubleCollection { 3, 3 } };
                 lines.Add(ln); cv.Children.Add(ln);
-                var dot = new Ellipse { Width = 2 * r, Height = 2 * r, Fill = Hud.Alpha(col, 0.25), Stroke = col, StrokeThickness = 1.5, Effect = new DropShadowEffect { Color = Hud.C(col), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.9 } };
+                var dot = new Ellipse { Width = 2 * r, Height = 2 * r, Fill = Hud.Alpha(col, 0.25), Stroke = col, StrokeThickness = 1.5, Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(col), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.9 }) };
                 Canvas.SetLeft(dot, x - r); Canvas.SetTop(dot, y - r); nodes.Add(dot);
                 var lab = new StackPanel { Width = 124 };
                 lab.Children.Add(new TextBlock { Text = a.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = bad ? Hud.Red : Hud.Text, TextTrimming = TextTrimming.CharacterEllipsis });
@@ -586,7 +586,7 @@ namespace HallowGuard
             var rr = new RotateTransform(20, 42, 42); ring.RenderTransform = rr; Canvas.SetLeft(ring, cx - 42); Canvas.SetTop(ring, cy - 42); cv.Children.Add(ring);
             Anim.Add(Hud.Animate(rr, RotateTransform.AngleProperty, () => Hud.Loop(0, 360, 24), 20));
             var hexPts = new PointCollection(); for (int i = 0; i < 6; i++) { double a = (60 * i - 90) * Math.PI / 180; hexPts.Add(new Point(cx + 32 * Math.Cos(a), cy + 32 * Math.Sin(a))); }
-            cv.Children.Add(new Polygon { Points = hexPts, Fill = Hud.Node, Stroke = Hud.Glow, StrokeThickness = 1.6, Effect = new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.8 } });
+            cv.Children.Add(new Polygon { Points = hexPts, Fill = Hud.Node, Stroke = Hud.Glow, StrokeThickness = 1.6, Effect = Hud.Fx(new DropShadowEffect { Color = Hud.C(Hud.Glow), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.8 }) });
             var pc = Icons.Make("microchip", 18, Hud.Glow); Canvas.SetLeft(pc, cx - 9); Canvas.SetTop(pc, cy - 19); cv.Children.Add(pc);
             var me = new TextBlock { Text = "THIS PC", FontFamily = Hud.Mono, FontSize = 9.5, FontWeight = FontWeights.Bold, Foreground = Hud.Text, Width = 64, TextAlignment = TextAlignment.Center };
             Canvas.SetLeft(me, cx - 32); Canvas.SetTop(me, cy + 2); cv.Children.Add(me);
@@ -621,6 +621,17 @@ namespace HallowGuard
                 row.Children.Add(Ui.Btn(Look.Label(name) + (name == Look.ConsoleName ? " (default)" : ""), () => { c.SetLook(name); Say("Look: " + Look.Label(name) + "."); }, Look.Current == name));
             }
             s.Children.Add(row);
+            // v1.8: light or dark
+            var mrow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var ml = Ui.T("Light or dark:", 12.5, true); ml.VerticalAlignment = VerticalAlignment.Center; ml.Margin = new Thickness(0, 0, 10, 0); mrow.Children.Add(ml);
+            foreach (var md in new[] { Mode.Follow, Mode.Light, Mode.Dark })
+            {
+                var m = md;
+                var mb = Ui.Btn(Mode.OwnLabel(m) + (m == Mode.Follow ? " (default)" : ""), () => { c.SetMode(m); Say("Light or dark: " + Mode.OwnLabel(m) + "."); }, Mode.Own(c.S.Mode) == m);
+                mb.IsEnabled = !Look.IsCyberBlue; mrow.Children.Add(mb);
+            }
+            s.Children.Add(mrow);
+            s.Children.Add(Ui.Muted("Now " + (Mode.IsLight ? "light" : "dark") + " (" + (Snap.On ? "picture" : Mode.Why(Look.Current, c.S.Mode, Accent.ReadMode())) + "). Follow Hallow uses the Light / Dark / Same as Windows switch in Hallow Toolkit's settings. Hallow console and Hallow classic come in light and dark; Cyber blue is always dark.", 11.5, 8));
             s.Children.Add(Ui.Muted("Hallow console is a security-console look in the Hallow colours: a radar score, a live scan console and a connection map, glowing in your Hallow accent. Hallow classic is the look from 1.3. Cyber blue is the console in the 1.4 neon cyan. Animations only run while this window is open and in front - they stop while it's minimized or in the tray, while a game or full-screen app runs, and when Windows' \"Show animations\" is off. Nothing else changes.", 11.5, Look.IsHud ? 4 : 0));
             if (Look.IsHud) s.Children.Add(Hud.M("ANIMATIONS: " + (Snap.On ? "RUN WHILE THE WINDOW IS IN FRONT" : Anim.Running ? "RUNNING" : "PAUSED (" + (Anim.Why ?? "-").ToUpperInvariant() + ")"), 10.5, Hud.Alpha(Hud.Lilac, 0.95)));
             return Card(s);

@@ -8,6 +8,13 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.8
+- Light and dark mode. Hallow console and Hallow classic now come in a light version too.
+  By default Guard follows the Hallow switch in Hallow Toolkit's settings (Light / Dark /
+  Same as Windows) and changes right away, no restart. Settings > Look > Light or dark:
+  Follow Hallow (default), Light or Dark just for Guard. Cyber blue is always dark.
+- The title bar and the tray menu match too.
+
 WHAT'S NEW IN 1.7
 - Hallow Guard looks like a Hallow app again: the console look now uses the family's
   dark purple-black, with your Hallow accent (orange unless you picked another in

@@ -18,14 +18,22 @@ namespace HallowGuard
         // the shared accent ("#RRGGBB"), or null when there's none or it isn't valid
         public static string Read()
         {
+            var s = Field("accent");
+            return s != null && Regex.IsMatch(s, "^#[0-9A-Fa-f]{6}$") ? s.ToUpperInvariant() : null;
+        }
+        // v1.8: the family light/dark switch ("dark" / "light" / "system") as written (Mode.Hallow normalises it), null when missing.
+        // Guard only reads it - Hallow Toolkit owns theme.json.
+        public static string ReadMode() { return Field("mode"); }
+        // one string field of theme.json, or null (no file, broken file, not a string); unknown fields are ignored
+        static string Field(string name)
+        {
             try
             {
                 if (!File.Exists(FilePath)) return null;
                 string text = null;
                 for (int i = 0; i < 3 && text == null; i++) { try { text = File.ReadAllText(FilePath); } catch (IOException) { System.Threading.Thread.Sleep(50); } }   // being replaced right now
                 var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(text ?? ""); object a;
-                var s = d != null && d.TryGetValue("accent", out a) ? a as string : null;
-                return s != null && Regex.IsMatch(s, "^#[0-9A-Fa-f]{6}$") ? s.ToUpperInvariant() : null;
+                return d != null && d.TryGetValue(name, out a) ? a as string : null;
             }
             catch { return null; }
         }
@@ -55,7 +63,7 @@ namespace HallowGuard
         {
             try
             {
-                if (!Directory.Exists(Folder)) return null;
+                if (!Directory.Exists(Folder)) return null;   // (the light/dark poll in Controller re-checks theme.json, so a file made later still counts)
                 var w = new FileSystemWatcher(Folder) { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime };
                 System.Threading.Timer t = null;
                 FileSystemEventHandler h = (s, e) =>

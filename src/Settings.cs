@@ -56,8 +56,10 @@ namespace HallowGuard
         [DataMember] public string LastReportNotified;
         // v1.4: the look. v1.7: "console" (default), "classic" (the 1.3 look) or "cyberblue"; a saved "cyber" becomes "console"
         [DataMember] public string Look = HallowGuard.Look.ConsoleName;
+        // v1.8: light or dark - "follow" (Hallow's switch in theme.json, the default), "light" or "dark"
+        [DataMember] public string Mode = HallowGuard.Mode.Follow;
 
-        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.ConsoleName; }
+        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.ConsoleName; Mode = HallowGuard.Mode.Follow; }
 
         public static GuardSettings Load()
         {
@@ -78,6 +80,7 @@ namespace HallowGuard
             if (Scans == null) Scans = new List<ScanRecord>();
             if (AwayEvery != "daily") AwayEvery = "weekly";
             Look = HallowGuard.Look.Normalize(Look);
+            Mode = HallowGuard.Mode.Own(Mode);
             Scans.RemoveAll(x => x == null);
             if (Scans.Count > 30) Scans.RemoveRange(30, Scans.Count - 30);
         }
