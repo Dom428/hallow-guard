@@ -11,7 +11,7 @@ $out = Join-Path $PSScriptRoot 'HallowGuard.exe'
 $refs = "$wpf\PresentationFramework.dll", "$wpf\PresentationCore.dll", "$wpf\WindowsBase.dll", "$fw\System.Xaml.dll",
     "$fw\System.Windows.Forms.dll", "$fw\System.Drawing.dll", "$fw\System.Runtime.Serialization.dll", "$fw\System.Core.dll",
     "$fw\System.IO.Compression.dll", "$fw\System.IO.Compression.FileSystem.dll", "$fw\System.Web.Extensions.dll", "$fw\System.Xml.dll", "$fw\System.Security.dll", "$fw\System.Management.dll"
-$common = @('/nologo', '/optimize+', "/win32icon:$src\hallow.ico", "/resource:$src\Theme.xaml,HallowGuard.Theme.xaml", "/resource:$src\ThemeCyber.xaml,HallowGuard.ThemeCyber.xaml") + ($refs | ForEach-Object { "/reference:$_" })
+$common = @('/nologo', '/optimize+', "/win32icon:$src\hallow.ico", "/resource:$src\Theme.xaml,HallowGuard.Theme.xaml", "/resource:$src\ThemeCyber.xaml,HallowGuard.ThemeCyber.xaml", "/resource:$src\ThemeConsole.xaml,HallowGuard.ThemeConsole.xaml") + ($refs | ForEach-Object { "/reference:$_" })
 $files = Get-ChildItem $src -Filter *.cs | ForEach-Object FullName
 & "$fw\csc.exe" @($common + @('/target:winexe', "/out:$out") + $files)
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }

@@ -19,7 +19,7 @@ namespace HallowGuard
         FrameworkElement HardGroup(IEnumerable<Check> checks)
         {
             var l = checks.ToList();
-            if (Look.Cyber) return CyGroup(l, false);
+            if (Look.IsHud) return CyGroup(l, false);
             var s = new StackPanel();
             foreach (var ch in l) s.Children.Add(CheckCard(ch));
             return s;
@@ -36,8 +36,8 @@ namespace HallowGuard
             if (c.HardChecks == null) { sp.Children.Add(Ui.Muted(c.HardReading ? "Reading Defender's settings, remote access, Windows features, accounts and Wi-Fi..." : "Not checked yet.", 12.5)); return sp; }
             var h = c.Hard;
             int bad = c.HardChecks.Count(x => x.State == CheckState.Bad || x.State == CheckState.Warn);
-            var sumLine = (c.HardValue ?? 0) + (Look.Cyber ? " / 100" : " of 100") + " - " + (bad == 0 ? "nothing to change." : bad == 1 ? "1 thing worth a look." : bad + " things worth a look.") + " This group takes at most " + HardScore.Cap + " points off the family score.";
-            sp.Children.Add(Look.Cyber ? (FrameworkElement)CyLine(c.HardValue == null ? Hud.Muted : Hud.ScoreColor(c.HardValue.Value), "[SCORE]", sumLine) : Ui.T(sumLine, 13.5, true, c.HardValue == null ? null : ScoreBrush(c.HardValue.Value), 8));
+            var sumLine = (c.HardValue ?? 0) + (Look.IsHud ? " / 100" : " of 100") + " - " + (bad == 0 ? "nothing to change." : bad == 1 ? "1 thing worth a look." : bad + " things worth a look.") + " This group takes at most " + HardScore.Cap + " points off the family score.";
+            sp.Children.Add(Look.IsHud ? (FrameworkElement)CyLine(c.HardValue == null ? Hud.Muted : Hud.ScoreColor(c.HardValue.Value), "[SCORE]", sumLine) : Ui.T(sumLine, 13.5, true, c.HardValue == null ? null : ScoreBrush(c.HardValue.Value), 8));
 
             sp.Children.Add(Section("Microsoft Defender settings", "the switches behind Defender's protection"));
             sp.Children.Add(HardGroup(HardIds("pua", "cloud", "samples", "netprot", "asr")));
@@ -73,10 +73,10 @@ namespace HallowGuard
             foreach (var x in items.OrderBy(i => i.Flag == null ? 1 : 0))
             {
                 var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-                var kind = Chip(x.Kind == "path" ? "Folder / file" : x.Kind == "extension" ? "File type" : "Process", x.Flag != null ? (Look.Cyber ? Hud.Red : Ui.Red) : (Look.Cyber ? Hud.Muted : Ui.R("Line")));
-                if (!Look.Cyber && x.Flag == null) ((TextBlock)((Border)kind).Child).Foreground = Ui.R("Text");
+                var kind = Chip(x.Kind == "path" ? "Folder / file" : x.Kind == "extension" ? "File type" : "Process", x.Flag != null ? (Look.IsHud ? Hud.Red : Ui.Red) : (Look.IsHud ? Hud.Muted : Ui.R("Line")));
+                if (!Look.IsHud && x.Flag == null) ((TextBlock)((Border)kind).Child).Foreground = Ui.R("Text");
                 kind.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(kind, Dock.Left); row.Children.Add(kind);
-                if (x.Flag != null) { var fl = Ui.T(x.Flag, 12, true, Look.Cyber ? Hud.Red : Ui.Red); fl.VerticalAlignment = VerticalAlignment.Center; fl.Margin = new Thickness(10, 0, 0, 0); DockPanel.SetDock(fl, Dock.Right); row.Children.Add(fl); }
+                if (x.Flag != null) { var fl = Ui.T(x.Flag, 12, true, Look.IsHud ? Hud.Red : Ui.Red); fl.VerticalAlignment = VerticalAlignment.Center; fl.Margin = new Thickness(10, 0, 0, 0); DockPanel.SetDock(fl, Dock.Right); row.Children.Add(fl); }
                 var v = Mono(x.Kind == "extension" ? "." + x.Value.TrimStart('*').TrimStart('.') : x.Value, Ui.R("Text")); v.VerticalAlignment = VerticalAlignment.Center; v.Margin = new Thickness(4, 0, 0, 0);
                 row.Children.Add(v);
                 s.Children.Add(row);
@@ -91,9 +91,9 @@ namespace HallowGuard
             {
                 var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
                 bool risky = w.Open && w.AutoConnect;
-                var col = risky ? (Look.Cyber ? Hud.Amber : Ui.Amber) : w.Open || w.Weak ? Ui.R("Muted") : (Look.Cyber ? Hud.Green : Ui.Green);
-                var tag = Chip(w.Open ? "Open" : w.Weak ? "Weak" : "Password", risky ? col : w.Open || w.Weak ? (Look.Cyber ? Hud.Muted : Ui.R("Line")) : col);
-                if (!Look.Cyber && !risky && (w.Open || w.Weak)) ((TextBlock)((Border)tag).Child).Foreground = Ui.R("Text");
+                var col = risky ? (Look.IsHud ? Hud.Amber : Ui.Amber) : w.Open || w.Weak ? Ui.R("Muted") : (Look.IsHud ? Hud.Green : Ui.Green);
+                var tag = Chip(w.Open ? "Open" : w.Weak ? "Weak" : "Password", risky ? col : w.Open || w.Weak ? (Look.IsHud ? Hud.Muted : Ui.R("Line")) : col);
+                if (!Look.IsHud && !risky && (w.Open || w.Weak)) ((TextBlock)((Border)tag).Child).Foreground = Ui.R("Text");
                 tag.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(tag, Dock.Left); row.Children.Add(tag);
                 var mode = Ui.Muted((w.AutoConnect ? "connects automatically" : "connects when you choose") + (w.Name == h.WifiConnected ? "  -  connected now" : ""), 11.5); mode.VerticalAlignment = VerticalAlignment.Center; mode.Margin = new Thickness(10, 0, 0, 0); DockPanel.SetDock(mode, Dock.Right); row.Children.Add(mode);
                 var nm = OneLine(Ui.T(w.Name, 13, true)); nm.VerticalAlignment = VerticalAlignment.Center; nm.Margin = new Thickness(4, 0, 0, 0);
@@ -109,9 +109,9 @@ namespace HallowGuard
         void HardeningSummary(StackPanel sp)
         {
             if (c.HardChecks == null) return;
-            sp.Children.Add(Section("Hardening", c.HardValue + (Look.Cyber ? " / 100" : " of 100")));
+            sp.Children.Add(Section("Hardening", c.HardValue + (Look.IsHud ? " / 100" : " of 100")));
             var look = Ordered(c.HardChecks.Where(x => x.State == CheckState.Bad || x.State == CheckState.Warn || x.State == CheckState.Unknown)).ToList();
-            if (look.Count == 0) sp.Children.Add(Card(Look.Cyber ? CyLine(Hud.Green, "[OK]", "All " + c.HardChecks.Count + " hardening checks look fine.") : (UIElement)Ui.T("All " + c.HardChecks.Count + " hardening checks look fine.", 13, false, Ui.Green), 8));
+            if (look.Count == 0) sp.Children.Add(Card(Look.IsHud ? CyLine(Hud.Green, "[OK]", "All " + c.HardChecks.Count + " hardening checks look fine.") : (UIElement)Ui.T("All " + c.HardChecks.Count + " hardening checks look fine.", 13, false, Ui.Green), 8));
             else sp.Children.Add(HardGroup(look));
             var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
             var open = Ui.Btn("Open Hardening", () => Show("hardening")); open.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(open, Dock.Right); row.Children.Add(open);

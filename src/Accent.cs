@@ -45,7 +45,9 @@ namespace HallowGuard
         public static string ApplyTo(string xaml, string accent)
         {
             if (accent == Default) return xaml;
-            return Regex.Replace(Regex.Replace(Regex.Replace(xaml, "#F07820", accent, RegexOptions.IgnoreCase), "#F59A50", Lighter(accent), RegexOptions.IgnoreCase), "#1A0E04", OnAccent(accent), RegexOptions.IgnoreCase);
+            // v1.7: also the see-through forms (#40F07820 - the Hallow console's glows), keeping their alpha
+            var rgb = accent.Substring(1);
+            return Regex.Replace(Regex.Replace(Regex.Replace(xaml, "#([0-9A-Fa-f]{2})?F07820", m => "#" + m.Groups[1].Value + rgb, RegexOptions.IgnoreCase), "#F59A50", Lighter(accent), RegexOptions.IgnoreCase), "#1A0E04", OnAccent(accent), RegexOptions.IgnoreCase);
         }
 
         // calls changed (on a background thread, 300 ms after the last change) when theme.json changes; null if the folder isn't there (yet)

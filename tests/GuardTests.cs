@@ -33,7 +33,7 @@ namespace HallowGuard.Tests
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); V16Tests.All(Ok); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); V16Tests.All(Ok); V17Tests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }

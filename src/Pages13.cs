@@ -116,7 +116,7 @@ namespace HallowGuard
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
             var score = J.Int(r, "score"); var delta = WeeklyReport.Delta(r);
             var big = new TextBlock { Text = score == null ? "-" : score.ToString(), FontSize = 30, FontWeight = FontWeights.Bold, Foreground = score == null ? Ui.R("Muted") : ScoreBrush(score.Value), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
-            if (Look.Cyber) { big.FontFamily = Hud.Head; big.FontWeight = FontWeights.SemiBold; }
+            if (Look.IsHud) { big.FontFamily = Hud.Head; big.FontWeight = FontWeights.SemiBold; }
             DockPanel.SetDock(big, Dock.Left); head.Children.Add(big);
             if (delta != null)
             {

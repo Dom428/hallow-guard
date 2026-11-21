@@ -1,5 +1,7 @@
-﻿// Hallow Guard v1.4 - the look. "cyber" (the default: a security-console HUD) or "classic" (the 1.3 look, untouched), the HUD
-// building blocks (fonts, colours, cards with corner brackets, status LEDs, the radar ring, segmented bars, the hex grid) and
+﻿// Hallow Guard - the look. v1.7: three looks - "console" (the default: the security-console HUD in the Hallow palette - dark
+// purple-black, the Hallow accent as the glow, lilac secondary lines, the family's green / amber / red), "classic" (the 1.3 look,
+// untouched) and "cyberblue" (the 1.4 cyan HUD, kept for whoever liked it). Saved "cyber" (1.4-1.6) becomes "console".
+// Also the HUD building blocks (fonts, colours, cards with corner brackets, status LEDs, the radar ring, segmented bars, the hex grid) and
 // the animation gate: animations only run while the window is visible and focused, no game or full-screen app is running and
 // Windows' "Show animations" is on. Otherwise every animated part shows a still frame - and costs nothing.
 using System;
@@ -18,11 +20,19 @@ namespace HallowGuard
 {
     public static class Look
     {
-        public const string CyberName = "cyber", ClassicName = "classic";
-        public static string Current = CyberName;
-        public static bool Cyber { get { return Current == CyberName; } }
-        // anything that isn't "classic" is the default look
-        public static string Normalize(string s) { return s != null && s.Trim().ToLowerInvariant() == ClassicName ? ClassicName : CyberName; }
+        public const string ConsoleName = "console", ClassicName = "classic", CyberBlueName = "cyberblue";
+        public static string Current = ConsoleName;
+        // the HUD layout (radar, brackets, console...): Hallow console and Cyber blue; Hallow classic is the plain 1.3 layout
+        public static bool IsHud { get { return Current != ClassicName; } }
+        public static bool IsCyberBlue { get { return Current == CyberBlueName; } }
+        // "classic" and "cyberblue" are kept; anything else - including the 1.4-1.6 "cyber" (the default then, never a deliberate
+        // choice of cyan) - is the default Hallow console
+        public static string Normalize(string s)
+        {
+            var v = s == null ? "" : s.Trim().ToLowerInvariant().Replace(" ", "").Replace("-", "");
+            return v == ClassicName ? ClassicName : v == CyberBlueName ? CyberBlueName : ConsoleName;
+        }
+        public static string Label(string look) { look = Normalize(look); return look == ClassicName ? "Hallow classic" : look == CyberBlueName ? "Cyber blue" : "Hallow console"; }
     }
 
     // ---------------- the animation gate
@@ -102,9 +112,56 @@ namespace HallowGuard
     public static class Hud
     {
         public static SolidColorBrush B(string hex) { return Ui.B(hex); }
-        public static readonly Brush Bg = B("#070B12"), Panel = B("#0B1320"), PanelHi = B("#102033"), Line = B("#1A3550"), LineDim = B("#122638"),
-            Text = B("#DDF6FF"), Muted = B("#8AA6BA"), Cyan = B("#22E1FF"), Green = B("#39FF88"), Amber = B("#FFB547"), Red = B("#FF3D6E"), Info = B("#7AB0FF"),
-            Console = B("#04080D"), Dim = B("#16293B");
+        // v1.7: the palette depends on the look (Use() is called by Program.LoadTheme, again when theme.json changes).
+        //   Glow  = the primary glow, borders, sweep, the open page's bar: the Hallow accent in Hallow console (cyan in Cyber blue)
+        //   Lilac = secondary lines, the hex grid, codes and labels
+        public static Brush Bg, Panel, PanelHi, Line, LineDim, Text, Muted, Glow, Lilac, Green, Amber, Red, Info, Low, Console, Dim, Side, Well, Node;
+        public static string GlowHex { get; private set; }
+        static Color cardTop, cardBottom, discIn, discMid, discOut;
+        static Hud() { Use(Look.ConsoleName, Accent.Default); }
+
+        public static void Use(string look, string accent)
+        {
+            if (Look.Normalize(look) == Look.CyberBlueName)
+            {
+                Bg = B("#070B12"); Panel = B("#0B1320"); PanelHi = B("#102033"); Line = B("#1A3550"); LineDim = B("#122638");
+                Text = B("#DDF6FF"); Muted = B("#8AA6BA"); Glow = B("#22E1FF"); Lilac = B("#22E1FF"); Green = B("#39FF88"); Amber = B("#FFB547"); Red = B("#FF3D6E"); Info = B("#7AB0FF"); Low = B("#FFE07A");
+                Console = B("#04080D"); Dim = B("#16293B"); Side = B("#05090F"); Well = B("#08131E"); Node = B("#0C2230");
+                cardTop = Hex("#F20E1828"); cardBottom = Hex("#F20A111C"); discIn = Hex("#0F2436"); discMid = Hex("#0A1422"); discOut = Hex("#070B12");
+                GlowHex = "#22E1FF";
+            }
+            else
+            {
+                // the family's dark purple-black (Mixer, Hub, Assist...: #16121C / #211B2A / #3A3248) and its status colours
+                Bg = B("#14101B"); Panel = B("#1C1726"); PanelHi = B("#221C2E"); Line = B("#3A3248"); LineDim = B("#2A2336");
+                Text = B("#ECE8F4"); Muted = B("#9790A8"); Lilac = B("#A98BE0"); Green = B("#6ED28C"); Amber = B("#F0BE5A"); Red = B("#E05A64"); Info = B("#A98BE0"); Low = B("#E8D27A");
+                Console = B("#100D16"); Dim = B("#2E2640"); Side = B("#110E17"); Well = B("#18131F");
+                cardTop = Hex("#F21E1828"); cardBottom = Hex("#F217121F"); discIn = Hex("#2A2236"); discMid = Hex("#1C1726"); discOut = Hex("#14101B");
+                GlowHex = Readable(Valid(accent) ? accent.ToUpperInvariant() : Accent.Default, Hex("#221C2E"));
+                Glow = B(GlowHex);
+                Node = new SolidColorBrush(Mix(Hex("#14101B"), Hex(GlowHex), 0.16)); Node.Freeze();
+            }
+            cardBg = cardLine = hex = null;    // rebuilt with the new colours
+        }
+        // the card gradient's ends (as solid colours, for the contrast test)
+        public static Brush CardTop { get { return B("#" + cardTop.R.ToString("X2") + cardTop.G.ToString("X2") + cardTop.B.ToString("X2")); } }
+        public static Brush CardBottom { get { return B("#" + cardBottom.R.ToString("X2") + cardBottom.G.ToString("X2") + cardBottom.B.ToString("X2")); } }
+        static bool Valid(string s) { return s != null && System.Text.RegularExpressions.Regex.IsMatch(s, "^#[0-9A-Fa-f]{6}$"); }
+        static Color Hex(string s) { return (Color)ColorConverter.ConvertFromString(s); }
+        public static Color Mix(Color a, Color b, double k) { return Color.FromArgb(255, (byte)Math.Round(a.R + (b.R - a.R) * k), (byte)Math.Round(a.G + (b.G - a.G) * k), (byte)Math.Round(a.B + (b.B - a.B) * k)); }
+        public static double Lum(Color c)
+        {
+            Func<byte, double> f = v => { var x = v / 255.0; return x <= 0.03928 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4); };
+            return 0.2126 * f(c.R) + 0.7152 * f(c.G) + 0.0722 * f(c.B);
+        }
+        public static double Ratio(Color a, Color b) { double x = Lum(a), y = Lum(b); return (Math.Max(x, y) + 0.05) / (Math.Min(x, y) + 0.05); }
+        // the accent as it is when it reads well on the panels (>= 4.5:1, the default orange does); a dark accent is lightened until it does
+        public static string Readable(string accent, Color on)
+        {
+            var c = Hex(accent);
+            for (int i = 0; i <= 20 && Ratio(c, on) < 4.6; i++) c = Mix(Hex(accent), Colors.White, i * 0.05);
+            return Ratio(Hex(accent), on) >= 4.6 ? accent : "#" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2");
+        }
         public static readonly FontFamily Mono = new FontFamily("Cascadia Mono, Consolas, Courier New");
         public static readonly FontFamily Head = new FontFamily("Bahnschrift, Segoe UI Variable Display, Segoe UI");
         public static readonly FontFamily Body = new FontFamily("Segoe UI Variable Text, Segoe UI");
@@ -169,7 +226,7 @@ namespace HallowGuard
             {
                 if (cardBg != null) return cardBg;
                 var g = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-                g.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#F20E1828"), 0)); g.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#F20A111C"), 1)); g.Freeze();
+                g.GradientStops.Add(new GradientStop(cardTop, 0)); g.GradientStops.Add(new GradientStop(cardBottom, 1)); g.Freeze();
                 return cardBg = g;
             }
         }
@@ -179,7 +236,8 @@ namespace HallowGuard
             {
                 if (cardLine != null) return cardLine;
                 var g = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
-                g.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0x22, 0xE1, 0xFF), 0)); g.GradientStops.Add(new GradientStop(Color.FromArgb(255, 0x1A, 0x35, 0x50), 0.35)); g.GradientStops.Add(new GradientStop(Color.FromArgb(255, 0x16, 0x2C, 0x44), 1)); g.Freeze();
+                var gl = C(Glow); var ln = C(Line); var dm = C(Dim);
+                g.GradientStops.Add(new GradientStop(Color.FromArgb(150, gl.R, gl.G, gl.B), 0)); g.GradientStops.Add(new GradientStop(ln, 0.35)); g.GradientStops.Add(new GradientStop(dm, 1)); g.Freeze();
                 return cardLine = g;
             }
         }
@@ -188,7 +246,7 @@ namespace HallowGuard
         {
             var inner = new Grid();
             inner.Children.Add(new Border { Child = child, Padding = pad });
-            inner.Children.Add(Brackets(bracket ?? Alpha(Cyan, 0.85)));
+            inner.Children.Add(Brackets(bracket ?? Alpha(Glow, 0.85)));
             return new Border { Child = inner, Background = CardBg, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 0, bottom) };
         }
         // a tag-style chip: [SEV:HIGH]
@@ -209,7 +267,7 @@ namespace HallowGuard
                 if (hex != null) return hex;
                 double a = 11, h = Math.Sqrt(3) * a;
                 var geo = Geometry.Parse(string.Format(System.Globalization.CultureInfo.InvariantCulture, "M0,{1} L{2},0 L{3},0 L{4},{1} L{3},{5} L{2},{5} Z M{4},{1} L{6},{1}", 0, h / 2, a / 2, 1.5 * a, 2 * a, h, 3 * a));
-                var d = new GeometryDrawing(null, new Pen(Alpha(Cyan, 0.07), 1), geo);
+                var d = new GeometryDrawing(null, new Pen(Alpha(Lilac, Look.IsCyberBlue ? 0.07 : 0.09), 1), geo);
                 var b = new DrawingBrush(d) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 3 * a, h), ViewportUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, 3 * a, h), ViewboxUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
                 RenderOptions.SetCachingHint(b, CachingHint.Cache); b.Freeze();
                 return hex = b;
@@ -279,8 +337,8 @@ namespace HallowGuard
             {
                 var c = new Canvas { Width = size, Height = size };
                 double cx = size / 2, cy = size / 2, rOut = size / 2 - 2, rSeg = size / 2 - 18, th = 11;
-                on = score < 0 ? Cyan : ScoreColor(score);
-                var disc = new RadialGradientBrush(); disc.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#0F2436"), 0)); disc.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#0A1422"), 0.7)); disc.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#070B12"), 1)); disc.Freeze();
+                on = score < 0 ? Glow : ScoreColor(score);
+                var disc = new RadialGradientBrush(); disc.GradientStops.Add(new GradientStop(discIn, 0)); disc.GradientStops.Add(new GradientStop(discMid, 0.7)); disc.GradientStops.Add(new GradientStop(discOut, 1)); disc.Freeze();
                 var bg = new Ellipse { Width = 2 * (rSeg - th), Height = 2 * (rSeg - th), Fill = disc }; Canvas.SetLeft(bg, cx - (rSeg - th)); Canvas.SetTop(bg, cy - (rSeg - th)); c.Children.Add(bg);
                 // the glow (behind the segments)
                 var glow = new Ellipse { Width = 2 * rSeg, Height = 2 * rSeg, Stroke = on, StrokeThickness = th + 6, Opacity = 0.35, Effect = new BlurEffect { Radius = 14 } };
@@ -296,8 +354,8 @@ namespace HallowGuard
                         ctx.LineTo(new Point(cx + (rOut - l) * Math.Sin(a), cy - (rOut - l) * Math.Cos(a)), true, false);
                     }
                 ticks.Freeze(); major.Freeze();
-                c.Children.Add(new Path { Data = ticks, Stroke = Alpha(Cyan, 0.35), StrokeThickness = 1 });
-                c.Children.Add(new Path { Data = major, Stroke = Alpha(Cyan, 0.8), StrokeThickness = 1.4 });
+                c.Children.Add(new Path { Data = ticks, Stroke = Alpha(Lilac, 0.35), StrokeThickness = 1 });
+                c.Children.Add(new Path { Data = major, Stroke = Alpha(Glow, 0.8), StrokeThickness = 1.4 });
                 // 50 segments
                 for (int i = 0; i < 50; i++)
                 {
@@ -308,11 +366,11 @@ namespace HallowGuard
                     var p = new Path { Data = pg, StrokeThickness = th, Stroke = Dim }; segs.Add(p); c.Children.Add(p);
                 }
                 // inner ring and cross-hair
-                var inner = new Ellipse { Width = 2 * (rSeg - th - 6), Height = 2 * (rSeg - th - 6), Stroke = Alpha(Cyan, 0.25), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 3 } };
+                var inner = new Ellipse { Width = 2 * (rSeg - th - 6), Height = 2 * (rSeg - th - 6), Stroke = Alpha(Lilac, 0.3), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 3 } };
                 Canvas.SetLeft(inner, cx - (rSeg - th - 6)); Canvas.SetTop(inner, cy - (rSeg - th - 6)); c.Children.Add(inner);
                 var cross = new StreamGeometry(); double rc = rSeg - th - 6;
                 using (var g = cross.Open()) { g.BeginFigure(new Point(cx - rc, cy), false, false); g.LineTo(new Point(cx - rc + 10, cy), true, false); g.BeginFigure(new Point(cx + rc - 10, cy), false, false); g.LineTo(new Point(cx + rc, cy), true, false); g.BeginFigure(new Point(cx, cy - rc), false, false); g.LineTo(new Point(cx, cy - rc + 10), true, false); g.BeginFigure(new Point(cx, cy + rc - 10), false, false); g.LineTo(new Point(cx, cy + rc), true, false); }
-                cross.Freeze(); c.Children.Add(new Path { Data = cross, Stroke = Alpha(Cyan, 0.5), StrokeThickness = 1 });
+                cross.Freeze(); c.Children.Add(new Path { Data = cross, Stroke = Alpha(Lilac, 0.5), StrokeThickness = 1 });
                 // the sweep: a fading wedge behind a bright line, turning round the centre
                 if (sweeping)
                 {
@@ -327,10 +385,10 @@ namespace HallowGuard
                     }
                     wedge.Freeze();
                     var fill = new LinearGradientBrush { StartPoint = new Point(1, 0.5), EndPoint = new Point(0, 0.9) };
-                    fill.GradientStops.Add(new GradientStop(Color.FromArgb(110, 0x22, 0xE1, 0xFF), 0)); fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x22, 0xE1, 0xFF), 1)); fill.Freeze();
+                    var gw = C(Glow); fill.GradientStops.Add(new GradientStop(Color.FromArgb(110, gw.R, gw.G, gw.B), 0)); fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, gw.R, gw.G, gw.B), 1)); fill.Freeze();
                     var sw = new Canvas { Width = size, Height = size, IsHitTestVisible = false };
                     sw.Children.Add(new Path { Data = wedge, Fill = fill });
-                    sw.Children.Add(new Line { X1 = cx, Y1 = cy, X2 = cx, Y2 = cy - rs, Stroke = Cyan, StrokeThickness = 1.6, Effect = new DropShadowEffect { Color = C(Cyan), BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 } });
+                    sw.Children.Add(new Line { X1 = cx, Y1 = cy, X2 = cx, Y2 = cy - rs, Stroke = Glow, StrokeThickness = 1.6, Effect = new DropShadowEffect { Color = C(Glow), BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 } });
                     var rot = new RotateTransform(35, cx, cy); sw.RenderTransform = rot; c.Children.Add(sw);
                     Sweep = Animate(rot, RotateTransform.AngleProperty, () => Loop(0, 360, 3.2), 35);
                 }
@@ -339,7 +397,7 @@ namespace HallowGuard
                 Number = new TextBlock { Text = score < 0 ? "--" : score.ToString(), FontFamily = Head, FontSize = size * 0.25, FontWeight = FontWeights.SemiBold, Foreground = on, HorizontalAlignment = HorizontalAlignment.Center };
                 mid.Children.Add(Number);
                 mid.Children.Add(new TextBlock { Text = "/100", FontFamily = Mono, FontSize = 11, Foreground = Muted, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, -4, 0, 2) });
-                mid.Children.Add(new TextBlock { Text = Spaced("integrity"), FontFamily = Head, FontSize = 9.5, Foreground = Alpha(Cyan, 0.9), HorizontalAlignment = HorizontalAlignment.Center });
+                mid.Children.Add(new TextBlock { Text = Spaced("integrity"), FontFamily = Head, FontSize = 9.5, Foreground = Alpha(Lilac, 0.95), HorizontalAlignment = HorizontalAlignment.Center });
                 Canvas.SetTop(mid, cy - size * 0.21); c.Children.Add(mid);
                 c.SnapsToDevicePixels = false;
                 AutomationProperties.SetName(c, score < 0 ? "Checking" : "Safety score " + score + " of 100, " + Status(score).ToLowerInvariant());

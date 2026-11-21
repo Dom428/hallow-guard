@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.7.0.0")]
+[assembly: AssemblyFileVersion("1.7.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.6";
+        public const string Version = "1.7";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -55,24 +55,31 @@ namespace HallowGuard
             GC.KeepAlive(mutex);
         }
         public static string AccentHex = Accent.Default;
-        // look: "cyber" / "classic", or null = the one in Settings. The cyber dictionary goes over the classic one (same keys win).
+        // look: "console" / "classic" / "cyberblue", or null = the one in Settings. A HUD look's dictionary goes over the classic
+        // one (same keys win). v1.7: Hallow console gets the Hallow accent swapped in, like the classic theme; Cyber blue never does.
         public static void LoadTheme(Application app, string look = null)
         {
             var st = GuardSettings.Load();
             AccentHex = Accent.Current(st.UseHallowAccent);
             HallowGuard.Look.Current = HallowGuard.Look.Normalize(look ?? st.Look);
+            Hud.Use(HallowGuard.Look.Current, AccentHex);
             app.Resources.MergedDictionaries.Clear();
             app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Accent.ApplyTo(Res("HallowGuard.Theme.xaml"), AccentHex)));
-            if (HallowGuard.Look.Cyber) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Res("HallowGuard.ThemeCyber.xaml")));
+            if (HallowGuard.Look.IsCyberBlue) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Res("HallowGuard.ThemeCyber.xaml")));
+            else if (HallowGuard.Look.IsHud) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(ConsoleTheme(Hud.GlowHex)));
         }
+        // the Hallow console dictionary with the accent swapped in (the readable accent: a very dark one is lightened)
+        public static string ConsoleTheme(string accent) { return Accent.ApplyTo(Res("HallowGuard.ThemeConsole.xaml"), accent); }
         static string Res(string name) { using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) using (var r = new StreamReader(s)) return r.ReadToEnd(); }
 
         // --snap <folder>: every page rendered off-screen with made-up data (never this PC's real files, names or settings)
-        // v1.4: both looks - the cyber look (the default) in the folder itself, Hallow classic in <folder>\classic
+        // v1.7: every look - Hallow console (the default) in the folder itself, Hallow classic in <folder>\classic, Cyber blue in
+        // <folder>\cyberblue
         static void SnapAll(string dir)
         {
-            LoadTheme(Application.Current, HallowGuard.Look.CyberName); SnapSet(dir);
+            LoadTheme(Application.Current, HallowGuard.Look.ConsoleName); SnapSet(dir);
             LoadTheme(Application.Current, HallowGuard.Look.ClassicName); SnapSet(Path.Combine(dir, "classic"));
+            LoadTheme(Application.Current, HallowGuard.Look.CyberBlueName); SnapSet(Path.Combine(dir, "cyberblue"));
         }
         static void SnapSet(string dir)
         {

@@ -54,10 +54,10 @@ namespace HallowGuard
         [DataMember] public bool ReportNotify = true;
         [DataMember] public string LastReportWeek;
         [DataMember] public string LastReportNotified;
-        // v1.4: the look - "cyber" (default) or "classic" (the 1.3 look)
-        [DataMember] public string Look = HallowGuard.Look.CyberName;
+        // v1.4: the look. v1.7: "console" (default), "classic" (the 1.3 look) or "cyberblue"; a saved "cyber" becomes "console"
+        [DataMember] public string Look = HallowGuard.Look.ConsoleName;
 
-        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.CyberName; }
+        [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.ConsoleName; }
 
         public static GuardSettings Load()
         {

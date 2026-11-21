@@ -6,7 +6,7 @@ Part of the Hallow family of Windows apps. Hallow Guard shows how well your PC i
 **Microsoft Defender** to scan when you want it to. It uses Defender's engine; it is **not an antivirus of its own**, and it
 never disables, replaces or weakens Defender.
 
-![Overview in the cyber look (made-up data)](docs/overview.png)
+![Overview in the Hallow console look (made-up data)](docs/overview.png)
 
 ## What it does
 
@@ -119,14 +119,20 @@ Security / Settings page, open Windows features, or show the steps - Hallow Guar
 - They form the **Hardening** group: its own score, at most 10 points off the family score (lightly: 1-4 points per item),
   and the to-do list. `status.json` adds `hardeningScore` only.
 
-## The cyber look (new in 1.4)
+## The Hallow console look (1.4, in the Hallow colours since 1.7)
 
 ![Scan: a live console of what Defender's scanner says (made-up data)](docs/scan.png)
 
-1.4 is a new look only - every feature, button and rule from 1.3 is the same.
+1.7 repaints the 1.4 security-console look in the Hallow family's colours, so Guard sits next to Mixer, Hub, Assist and the
+rest as one family - same layout, same motion:
 
-- **A security console**: near-black blue, thin glowing cyan lines, corner brackets on every card, a faint hex grid and a
-  vignette. Electric green means secure, amber a warning, magenta-red a threat. Headings in spaced capitals (Bahnschrift),
+![Hallow Guard next to Hallow Mixer and Hallow Assist (made-up data)](docs/look-family.png)
+
+- **A security console in the Hallow palette**: the family's dark purple-black backgrounds, corner brackets on every card,
+  a faint lilac hex grid and a vignette. The glow - borders, the radar sweep, the open page's bar, focus - is your **Hallow
+  accent** (orange unless you picked another in Hallow Toolkit; it follows `theme.json` live, like the other apps, when
+  *Use the Hallow accent* is on). Lilac for secondary lines and codes; the family's green, amber and red for secure, warning
+  and threat. Headings in spaced capitals (Bahnschrift),
   numbers, IDs, paths and logs in a monospace font (Cascadia Mono, or Consolas when it isn't installed).
 - **Overview**: the score is a radar ring - a segmented arc with tick marks that counts up when it appears, a sweep line
   while the checks run and a slow pulsing glow when the PC is secure - with a `STATUS: SECURE / ATTENTION / AT RISK`
@@ -137,14 +143,16 @@ Security / Settings page, open Windows features, or show the steps - Hallow Guar
 - **History and Leftovers**: tags like `SEV:SEVERE`, Defender's threat ID in hex, Guard's scrambled ID for each leftover,
   and a pulsing red edge on suspicious items. **Network**: a connection map - this PC in the middle, the apps around it with
   their internet and local hosts, suspicious ones in red - above the same list as before.
-- **Sidebar**: numbered pages with a neon bar on the open one, icons that glow on hover, and a small telemetry block (PC
+- **Sidebar**: numbered pages with a glowing accent bar on the open one, icons that glow on hover, and a small telemetry block (PC
   uptime, last check, definitions age, engine).
 - **Cheap on purpose**: animations run at 24 frames a second and only while the window is visible, not minimized and in
   front. They stop in the tray, while a game or full-screen app runs (the same check as the scan while you're away) and when
   Windows' *Show animations* is off - then every animated part shows a still frame.
-- **Keyboard focus** is a neon outline; text contrast is at least 4.5:1 (checked by the tests).
-- **Settings > Look**: *Cyber* (the default) or *Hallow classic* - the 1.3 look, untouched (it keeps the Hallow accent from
-  Hallow Toolkit everywhere; the cyber look keeps it for the HALLOW name and "new since last week" marks).
+- **Keyboard focus** is a glowing outline; text contrast is at least 4.5:1 with any accent - a very dark accent is lightened
+  for the glow (checked by the tests).
+- **Settings > Look**: *Hallow console* (the default), *Hallow classic* - the 1.3 look, untouched - or *Cyber blue*, the 1.4
+  neon-cyan console for whoever liked it. A look saved by 1.4-1.6 as "Cyber" (the default then) opens as Hallow console;
+  Hallow classic stays Hallow classic.
 
 ![Hallow classic (made-up data)](docs/classic.png)
 
@@ -202,7 +210,7 @@ while you're away, the weekly report and the weekly reminder.
 .\build.ps1          # HallowGuard.exe with the C# compiler that ships with Windows (.NET Framework 4.8)
 .\build.ps1 -Tests   # also tests\GuardTests.exe
 .\tests\GuardTests.exe
-.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data (cyber, and classic\ in <folder>\classic)
+.\HallowGuard.exe --snap <folder>   # every page rendered off-screen with made-up data (Hallow console; classic\ and cyberblue\ subfolders)
 ```
 
 The tests never run a real Defender scan: they use a stand-in `MpCmdRun`, made-up system checks, a local stand-in for
@@ -221,6 +229,10 @@ prints only timings, check IDs and states.
 
 ## What's new
 
+- **1.7** - Guard looks like a Hallow app again: the console look is repainted in the family's dark purple-black with the
+  Hallow accent as its glow (following Hallow Toolkit's accent live), lilac secondary lines and the family's green / amber /
+  red. Same radar, brackets, codes, scan console, hex grid, telemetry and motion. Looks: *Hallow console* (default), *Hallow
+  classic*, *Cyber blue* (the 1.4 cyan). A saved "Cyber" becomes Hallow console. Nothing else changed.
 - **1.6** - Windows hardening checks: a Hardening page (both looks) for Defender's settings (PUA, cloud protection, sample
   submission, network protection, ASR rules), Defender exclusions (broad or Temp / unsigned ones flagged; "Check (admin)" when
   Windows hides them), remote access (Remote Desktop + NLA, remote-access apps that start with Windows or run unattended),

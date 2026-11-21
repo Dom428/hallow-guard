@@ -8,6 +8,14 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.7
+- Hallow Guard looks like a Hallow app again: the console look now uses the family's
+  dark purple-black, with your Hallow accent (orange unless you picked another in
+  Hallow Toolkit) as the glow, lilac secondary lines and the family's green, amber and
+  red. Same radar, codes, scan console and motion.
+- Settings > Look: Hallow console (default), Hallow classic, or Cyber blue (the 1.4
+  cyan look). If you had "Cyber" it opens as Hallow console; Hallow classic stays.
+
 WHAT'S NEW IN 1.6
 - A new Hardening page: read-only checks of the settings that make Windows harder to
   attack - Microsoft Defender's settings (unwanted apps, cloud protection, sample

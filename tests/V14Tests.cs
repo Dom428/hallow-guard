@@ -26,11 +26,12 @@ namespace HallowGuard.Tests
         // ---------------- Settings > Look
         static void LookSetting()
         {
-            Ok(Look.Normalize(null) == "cyber" && Look.Normalize("") == "cyber" && Look.Normalize("neon") == "cyber" && Look.Normalize(" Classic ") == "classic" && Look.Normalize("cyber") == "cyber", "look names: classic, anything else is cyber");
-            Ok(new GuardSettings().Look == "cyber", "a new install: the cyber look");
+            // v1.7: the default is "console" (Hallow console); a 1.4-1.6 "cyber" becomes it (see V17Tests for the migration)
+            Ok(Look.Normalize(null) == "console" && Look.Normalize("") == "console" && Look.Normalize("neon") == "console" && Look.Normalize(" Classic ") == "classic" && Look.Normalize("cyber") == "console", "look names: classic, anything else is the default (console)");
+            Ok(new GuardSettings().Look == "console", "a new install: the Hallow console look");
             var old = "{\"UseHallowIcon\":true,\"AwayScan\":true,\"Scans\":[]}";
             using (var m = new MemoryStream(Encoding.UTF8.GetBytes(old)))
-                Ok(((GuardSettings)new DataContractJsonSerializer(typeof(GuardSettings)).ReadObject(m)).Look == "cyber", "a 1.3 settings file (no Look): the cyber look");
+                Ok(((GuardSettings)new DataContractJsonSerializer(typeof(GuardSettings)).ReadObject(m)).Look == "console", "a 1.3 settings file (no Look): the Hallow console look");
             // saved and loaded from the test data folder (never the real one)
             var dir = GuardSettings.Dir; var file = Path.Combine(dir, "settings.json");
             Ok(GuardSettings.TestDir != null && dir == GuardSettings.TestDir, "(the test data folder is used, not %APPDATA%)");
@@ -39,16 +40,16 @@ namespace HallowGuard.Tests
             {
                 var s = GuardSettings.Load(); s.Look = "classic"; s.Save();
                 Ok(File.ReadAllText(file).Contains("\"Look\":\"classic\"") && GuardSettings.Load().Look == "classic", "Look = classic is saved and loaded");
-                var l = GuardSettings.Load(); l.Look = "cyber"; l.Save();
-                Ok(GuardSettings.Load().Look == "cyber", "switching back to cyber is saved");
+                var l = GuardSettings.Load(); l.Look = "console"; l.Save();
+                Ok(GuardSettings.Load().Look == "console", "switching back to Hallow console is saved");
                 File.WriteAllText(file, "{\"Look\":\"plaid\",\"Scans\":[]}");
-                Ok(GuardSettings.Load().Look == "cyber", "an unknown look in the file: cyber");
+                Ok(GuardSettings.Load().Look == "console", "an unknown look in the file: Hallow console");
                 File.WriteAllText(file, "{\"Look\":null,\"Scans\":[]}");
-                Ok(GuardSettings.Load().Look == "cyber", "Look = null in the file: cyber");
+                Ok(GuardSettings.Load().Look == "console", "Look = null in the file: Hallow console");
                 var keep = GuardSettings.Load(); keep.Look = "classic"; keep.AwayScan = true; keep.WatchDownloads = true; keep.Save();
                 var back = GuardSettings.Load();
                 Ok(back.Look == "classic" && back.AwayScan && back.WatchDownloads, "the look is saved next to the other settings without touching them");
-                GuardSettings.Frozen = true; var fz = GuardSettings.Load(); fz.Look = "cyber"; fz.Save(); GuardSettings.Frozen = false;
+                GuardSettings.Frozen = true; var fz = GuardSettings.Load(); fz.Look = "console"; fz.Save(); GuardSettings.Frozen = false;
                 Ok(GuardSettings.Load().Look == "classic", "--snap (frozen settings) never saves the look");
             }
             finally
@@ -142,15 +143,27 @@ namespace HallowGuard.Tests
             return 0.2126 * f(c.R) + 0.7152 * f(c.G) + 0.0722 * f(c.B);
         }
         static double Ratio(Brush a, Brush b) { double x = Lum(Hud.C(a)), y = Lum(Hud.C(b)); return (Math.Max(x, y) + 0.05) / (Math.Min(x, y) + 0.05); }
+        // v1.7: every HUD palette - Hallow console with the default orange and with other accents (a dark one is lightened), and Cyber blue
+        public static double Worst()
+        {
+            var fgs = new[] { Hud.Text, Hud.Muted, Hud.Glow, Hud.Lilac, Hud.Green, Hud.Amber, Hud.Red, Hud.Info, Hud.Low };
+            var bgs = new[] { Hud.Bg, Hud.Panel, Hud.PanelHi, Hud.Console, Hud.Side, Hud.Well, Hud.CardTop, Hud.CardBottom };
+            return fgs.SelectMany(f => bgs.Select(b => Ratio(f, b))).Min();
+        }
         static void Contrast()
         {
-            var fgs = new[] { Hud.Text, Hud.Muted, Hud.Cyan, Hud.Green, Hud.Amber, Hud.Red, Hud.Info };
-            var bgs = new[] { Hud.Bg, Hud.Panel, Hud.PanelHi, Hud.Console };
-            double worst = fgs.SelectMany(f => bgs.Select(b => Ratio(f, b))).Min();
-            Ok(worst >= 4.5, "cyber text colours on every background: contrast >= 4.5:1 (worst " + worst.ToString("0.0") + ")");
+            try
+            {
+                foreach (var t in new[] { Tuple.Create("console", "#F07820"), Tuple.Create("console", "#A98BE0"), Tuple.Create("console", "#3050A0"), Tuple.Create("console", "#200040"), Tuple.Create("console", "#00FF66"), Tuple.Create("cyberblue", "#F07820") })
+                {
+                    Hud.Use(t.Item1, t.Item2); double worst = Worst();
+                    Ok(worst >= 4.5, t.Item1 + " text colours (accent " + t.Item2 + ") on every background: contrast >= 4.5:1 (worst " + worst.ToString("0.0") + ")");
+                }
+            }
+            finally { Hud.Use(Look.ConsoleName, Accent.Default); }
         }
 
-        // ---------------- the cyber theme never gets the classic accent swapped into it
+        // ---------------- the Cyber blue theme never gets the classic accent swapped into it
         static void ThemeFile()
         {
             string x; using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowGuard.ThemeCyber.xaml")) x = s == null ? null : new StreamReader(s).ReadToEnd();

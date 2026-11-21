@@ -18,12 +18,12 @@ namespace HallowGuard
         public static Style S(string key) { return (Style)Application.Current.FindResource(key); }
         public static Brush Accent { get { return B(Program.AccentHex); } }
         static readonly Brush green = B("#6ED28C"), amber = B("#F0BE5A"), red = B("#E05A64");
-        // v1.4: the cyber look has its own (brighter) status colours; classic keeps the 1.3 ones
-        public static Brush Green { get { return Look.Cyber ? Hud.Green : green; } }
-        public static Brush Amber { get { return Look.Cyber ? Hud.Amber : amber; } }
-        public static Brush Red { get { return Look.Cyber ? Hud.Red : red; } }
-        // the highlight for icons and headings: cyan in the cyber look, the Hallow accent in classic
-        public static Brush Hi { get { return Look.Cyber ? Hud.Cyan : Accent; } }
+        // the HUD looks take their status colours from the HUD palette (v1.7: Hallow console uses the family ones; Cyber blue its neon ones)
+        public static Brush Green { get { return Look.IsHud ? Hud.Green : green; } }
+        public static Brush Amber { get { return Look.IsHud ? Hud.Amber : amber; } }
+        public static Brush Red { get { return Look.IsHud ? Hud.Red : red; } }
+        // the highlight for icons and headings: the HUD glow (the Hallow accent in Hallow console, cyan in Cyber blue), the accent in classic
+        public static Brush Hi { get { return Look.IsHud ? Hud.Glow : Accent; } }
 
         public static void Dress(Window w, string title, double width)
         {
@@ -33,7 +33,7 @@ namespace HallowGuard
             w.SourceInitialized += (s, e) => { int dark = 1; DwmSetWindowAttribute(new WindowInteropHelper(w).Handle, 20, ref dark, 4); };
         }
         // the window's colours and font for the current look (again after Settings > Look changes)
-        public static void Restyle(Window w) { w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = Look.Cyber ? Hud.Body : new FontFamily("Segoe UI"); }
+        public static void Restyle(Window w) { w.Background = R("Bg"); w.Foreground = R("Text"); w.FontFamily = Look.IsHud ? Hud.Body : new FontFamily("Segoe UI"); }
         static ImageSource icon;
         public static ImageSource AppIcon()
         {

@@ -43,7 +43,7 @@ namespace HallowGuard
             {
                 if (elapsed != null && c.Scanning) elapsed.Text = ElapsedText();
                 if (!IsVisible || WindowState == WindowState.Minimized) return;
-                if (Look.Cyber) UpdateTelemetry();
+                if (Look.IsHud) UpdateTelemetry();
                 if (cyTick != null) cyTick();
                 if (++ticks % 3 == 0) Anim.Update();
             };
@@ -56,7 +56,7 @@ namespace HallowGuard
         public void Rebuild()
         {
             Ui.Restyle(this);
-            if (Look.Cyber) { CyRebuild(); return; }
+            if (Look.IsHud) { CyRebuild(); return; }
             var root = new Grid();
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(224) });
             root.ColumnDefinitions.Add(new ColumnDefinition());
@@ -107,8 +107,8 @@ namespace HallowGuard
             FrameworkElement el;
             switch (p)
             {
-                case "scan": el = Look.Cyber ? CyScanPage() : ScanPage(); break;
-                case "history": el = Look.Cyber ? CyHistoryPage() : HistoryPage(); break;
+                case "scan": el = Look.IsHud ? CyScanPage() : ScanPage(); break;
+                case "history": el = Look.IsHud ? CyHistoryPage() : HistoryPage(); break;
                 case "leftovers": el = LeftoversPage(); break;
                 case "network": el = NetworkPage(); break;
                 case "extensions": el = ExtensionsPage(); break;
@@ -116,7 +116,7 @@ namespace HallowGuard
                 case "hardening": el = HardeningPage(); break;
                 case "reports": el = ReportsPage(); break;
                 case "settings": el = SettingsPage(); break;
-                default: page = "overview"; el = Look.Cyber ? CyOverviewPage() : OverviewPage(); break;
+                default: page = "overview"; el = Look.IsHud ? CyOverviewPage() : OverviewPage(); break;
             }
             content.Child = new ScrollViewer { Content = el, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             Anim.Update();
@@ -125,7 +125,7 @@ namespace HallowGuard
         // ---------------- helpers
         static StackPanel Page(string title, string sub)
         {
-            if (Look.Cyber) return CyPage(title, sub);
+            if (Look.IsHud) return CyPage(title, sub);
             var sp = new StackPanel { Margin = new Thickness(28, 22, 28, 12) };
             sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4) });
             if (sub != null) sp.Children.Add(Ui.Muted(sub, 12.5, 14));
@@ -133,12 +133,12 @@ namespace HallowGuard
         }
         static Border Card(UIElement child, double bottom = 10)
         {
-            if (Look.Cyber) return Hud.Card(child, new Thickness(16, 12, 16, 12), bottom);
+            if (Look.IsHud) return Hud.Card(child, new Thickness(16, 12, 16, 12), bottom);
             return new Border { Child = child, Background = Ui.R("Panel"), BorderBrush = Ui.R("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, bottom) };
         }
         static FrameworkElement Chip(string text, Brush color)
         {
-            if (Look.Cyber) return Hud.Tag(text, color);
+            if (Look.IsHud) return Hud.Tag(text, color);
             var b = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 2, 8, 2), Background = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             b.Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Ui.B("#16121C") };
             return b;
@@ -151,7 +151,7 @@ namespace HallowGuard
         static DateTime? Iso(string s) { DateTime t; return DateTime.TryParse(s, null, System.Globalization.DateTimeStyles.RoundtripKind, out t) ? t : (DateTime?)null; }
         static TextBlock Mono(string text, Brush fg)
         {
-            return new TextBlock { Text = text, FontFamily = Look.Cyber ? Hud.Mono : new FontFamily("Consolas"), FontSize = 11.5, Foreground = fg, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 2) };
+            return new TextBlock { Text = text, FontFamily = Look.IsHud ? Hud.Mono : new FontFamily("Consolas"), FontSize = 11.5, Foreground = fg, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 2) };
         }
         static TextBlock OneLine(TextBlock t) { t.TextWrapping = TextWrapping.NoWrap; t.TextTrimming = TextTrimming.CharacterEllipsis; return t; }
 
@@ -244,12 +244,12 @@ namespace HallowGuard
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these. \"Open settings\" takes you to the right Windows page; nothing is changed behind your back.", 11.5, 0));
             return sp;
         }
-        static FrameworkElement SubHead(string text) { return Look.Cyber ? Section(text, null) : Ui.T(text, 14, true, null, 6); }
+        static FrameworkElement SubHead(string text) { return Look.IsHud ? Section(text, null) : Ui.T(text, 14, true, null, 6); }
         static int Rank(CheckState s) { return s == CheckState.Bad ? 0 : s == CheckState.Warn ? 1 : s == CheckState.Unknown ? 2 : s == CheckState.Info ? 3 : 4; }
         static IEnumerable<Check> Ordered(IEnumerable<Check> l) { return l.OrderBy(x => Rank(x.State)); }
         static FrameworkElement Section(string title, string sub)
         {
-            if (Look.Cyber) return CySection(title, sub);
+            if (Look.IsHud) return CySection(title, sub);
             var p = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 8) };
             p.Children.Add(new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Bottom });
             if (sub != null) p.Children.Add(new TextBlock { Text = "   " + sub, FontSize = 12, Foreground = Ui.R("Muted"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 2) });
@@ -472,7 +472,7 @@ namespace HallowGuard
         }
         FrameworkElement LeftoverRow(Leftover l)
         {
-            if (Look.Cyber) return CyLeftoverRow(l);
+            if (Look.IsHud) return CyLeftoverRow(l);
             var s = new StackPanel();
             var h = new DockPanel { Margin = new Thickness(0, 0, 0, 3) };
             var chip = Chip(l.VerdictText, VerdictBrush(l.V)); DockPanel.SetDock(chip, Dock.Left); h.Children.Add(chip);

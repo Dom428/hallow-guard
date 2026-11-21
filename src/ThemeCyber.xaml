@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:h="clr-namespace:HallowGuard;assembly=HallowGuard">
-    <!-- v1.4 "Cyber" look: a security console. Merged over Theme.xaml (same keys win), only when Settings > Look is Cyber.
+    <!-- v1.4 "Cyber" look, v1.7 "Cyber blue" (optional): the security console in neon cyan. Merged over Theme.xaml (same keys
+         win), only when Settings > Look is Cyber blue. Never gets the Hallow accent swapped in.
          Near-black blue, thin cyan lines, electric green = secure, amber = warning, magenta-red = threat. Focus = a neon outline. -->
     <h:IconConv x:Key="IconConv"/><h:IconVis x:Key="IconVis"/><h:LabelVis x:Key="LabelVis"/><h:IconGap x:Key="IconGap"/>
     <SolidColorBrush x:Key="Bg" Color="#070B12"/>

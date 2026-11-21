@@ -37,7 +37,7 @@ namespace HallowGuard
             var n = c.Net;
             if (n == null) { sp.Children.Add(Ui.Muted(c.NetReading ? "Reading the connection tables..." : "Not looked at yet.", 12.5)); return sp; }
             if (n.Error != null) { sp.Children.Add(Card(Ui.T("Couldn't read the connection tables: " + n.Error, 12.5, false, Ui.Amber))); return sp; }
-            if (Look.Cyber) sp.Children.Add(NetMap(n));   // v1.4: the connection map (the list stays below)
+            if (Look.IsHud) sp.Children.Add(NetMap(n));   // v1.4: the connection map (the list stays below)
             // listeners
             var sus = n.Listeners.Count(l => l.V == Verdict.Suspicious);
             sp.Children.Add(Section("Open to the network", Plural(n.Listeners.Count, "program waits", "programs wait") + " for connections from other devices" + (sus > 0 ? " - " + sus + " suspicious" : "")));
@@ -158,7 +158,7 @@ namespace HallowGuard
             var w = new StackPanel();
             w.Children.Add(IconRow("triangle-exclamation", Ui.Amber, "It can stop games and apps from saving", 13.5));
             w.Children.Add(Ui.T("When it's on, an app Windows doesn't recognise can't write into a protected folder - that includes games saving into Documents\\My Games or Saved Games, and some launchers, mods and editors. If a game says it couldn't save, or Windows shows \"Unauthorized changes blocked\", open Ransomware protection > Allow an app through Controlled folder access and add the game's .exe. Nothing is lost: the change is just blocked until you allow it.", 12.5, false, null, 0));
-            if (Look.Cyber) { var wc = Hud.Card(w, new Thickness(16, 12, 16, 12), 10, Hud.Amber); wc.BorderBrush = Hud.Alpha(Hud.Amber, 0.6); sp.Children.Add(wc); }
+            if (Look.IsHud) { var wc = Hud.Card(w, new Thickness(16, 12, 16, 12), 10, Hud.Amber); wc.BorderBrush = Hud.Alpha(Hud.Amber, 0.6); sp.Children.Add(wc); }
             else sp.Children.Add(new Border { Child = w, Background = Ui.R("Panel"), BorderBrush = Ui.Amber, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 10) });
             // folders
             var hints = c.Folders ?? new List<FolderHint>();
