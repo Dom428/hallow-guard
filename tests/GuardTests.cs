@@ -33,7 +33,7 @@ namespace HallowGuard.Tests
             // the app's settings class reads this once: set it first, so this process uses the test pipe name and never the real data folder
             PipeDir = Path.Combine(Path.GetTempPath(), "HallowGuardPipeTest" + Process.GetCurrentProcess().Id);
             Environment.SetEnvironmentVariable("HALLOW_GUARD_TESTDIR", PipeDir);
-            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); V16Tests.All(Ok); V17Tests.All(Ok); V18Tests.All(Ok); V19Tests.All(Ok); PipeAndApp(); }
+            try { Scores(); Verdicts(); Watcher(); VirusTotal(); StartupRoundTrip(); Misc(); FamilyTests.All(Ok); V12Tests.All(Ok); V13Tests.All(Ok); V14Tests.All(Ok); V16Tests.All(Ok); V17Tests.All(Ok); V18Tests.All(Ok); V19Tests.All(Ok); V110Tests.All(Ok); PipeAndApp(); }
             catch (Exception e) { fail++; Console.WriteLine("FAIL exception: " + e); }
             // the parent key the test keys made, if nothing of the real app is in it
             try { using (var k = Registry.CurrentUser.OpenSubKey(@"Software\HallowGuard")) if (k != null && k.SubKeyCount == 0 && k.ValueCount == 0) { k.Close(); Registry.CurrentUser.DeleteSubKey(@"Software\HallowGuard", false); } } catch { }
@@ -379,6 +379,12 @@ namespace HallowGuard.Tests
                 Ok((string)st["ransomware"] == "off" && net != null && Convert.ToInt32(net["suspicious"]) == 1 && Convert.ToInt32(net["listeners"]) == 5 && ext != null && Convert.ToInt32(ext["high"]) == 2 && Convert.ToInt32(ext["known"]) == 2 && Convert.ToInt32(st["moreScore"]) == 88, "status (1.2): ransomware off, 1 suspicious of 5 listeners, 2 high-risk / 2 known extensions, moreScore 88");
                 var stJson = Family.Json(st);
                 Ok(!stJson.Contains("updsvc") && !stJson.Contains("203.0.113") && !stJson.Contains("PDF Tools"), "status.json has counts only - no program names, addresses or extension names");
+                // v1.10: recently blocked by Ransomware protection (the made-up log): 5 apps, counts only, the note off by default
+                for (int i = 0; i < 50; i++) { st = status(); if (st != null && st.ContainsKey("cfaBlocked") && st["cfaBlocked"] != null) break; Thread.Sleep(200); }
+                var pub = new Dictionary<string, object>(st); pub.Remove("test"); var pubJson = Family.Json(pub);
+                var cfaApps = ((System.Collections.IEnumerable)((Dictionary<string, object>)st["test"])["cfaApps"]).Cast<object>().Select(x => x.ToString()).ToList();
+                Ok(Convert.ToInt32(st["cfaBlocked"]) == 5 && (string)st["cfaLog"] == "ok" && !(bool)st["cfaNotes"] && !pubJson.Contains("FreeFpsBooster") && !pubJson.Contains("SnippingTool"), "status (1.10): cfaBlocked 5, cfaLog ok, notes off by default, no app names (" + st["cfaBlocked"] + ")");
+                Ok(cfaApps.Contains("SnippingTool.exe=trusted:6") && cfaApps.Contains("FreeFpsBooster.exe=check:1") && cfaApps.Contains("ExampleQuest.exe=trusted:1") && cfaApps.Contains("HallowClips.exe=trusted:1") && cfaApps.Contains("obs64.exe=trusted:2"), "test copy (1.10): the made-up blocks grouped and classified (" + string.Join(", ", cfaApps) + ")");
                 var mc = ((System.Collections.IEnumerable)((Dictionary<string, object>)st["test"])["moreChecks"]).Cast<object>().Select(x => x.ToString()).ToList();
                 var todoIds = ((System.Collections.IEnumerable)((Dictionary<string, object>)st["test"])["todoIds"]).Cast<object>().Select(x => x.ToString()).ToList();
                 Ok(mc.Contains("listeners=Bad -6") && mc.Contains("extensions=Warn -6") && todoIds.Contains("listeners") && todoIds.Contains("extensions"), "test copy: Network & browsers checks, both on the to-do list (" + string.Join(", ", todoIds) + ")");

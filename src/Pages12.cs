@@ -154,6 +154,8 @@ namespace HallowGuard
             st.Children.Add(head);
             sp.Children.Add(Card(st, 10));
             if (other) { sp.Children.Add(Ui.Muted("With another antivirus in charge, Microsoft Defender's ransomware protection isn't used.", 12, 10)); }
+            // v1.10: what it blocked lately
+            if (!other) sp.Children.Add(BlockedCard(true));
             // the warning
             var w = new StackPanel();
             w.Children.Add(IconRow("triangle-exclamation", Ui.Amber, "It can stop games and apps from saving", 13.5));
@@ -190,7 +192,7 @@ namespace HallowGuard
                 foreach (var p in cfa.Allowed) lists.Children.Add(Mono(p, Ui.R("Muted")));
                 sp.Children.Add(Card(lists, 10));
             }
-            var b = Ui.Row(Ui.Btn("Protected folders", () => c.RunFix(Ransom.Page), false, "Opens Windows Security > Ransomware protection"), Ui.Btn("Allow an app", () => c.RunFix(Ransom.Page), false, "Opens Windows Security > Ransomware protection, where \"Allow an app through Controlled folder access\" is"));
+            var b = Ui.Row(Ui.Btn("Protected folders", () => c.RunFix(Ransom.Page), false, "Opens Windows Security > Ransomware protection"), Ui.Btn("Allow an app", () => c.RunFix(CfaBlocks.AllowPage), false, "Opens Windows Security > Ransomware protection > Allow an app through Controlled folder access (Windows asks for admin)"));
             b.Margin = new Thickness(0, 0, 0, 10); sp.Children.Add(b);
             sp.Children.Add(Ui.Muted("Hallow Guard only reads these settings. It never turns Controlled folder access on or off and never adds folders or apps - each button opens Windows Security's Ransomware protection page, where you decide.", 11.5, 0));
             return sp;

@@ -199,6 +199,7 @@ namespace HallowGuard
             var btns = Ui.Row(quick, again); btns.Margin = new Thickness(0, 8, 0, 0); info.Children.Add(btns);
             top.Children.Add(info);
             sp.Children.Add(Hud.Card(top, new Thickness(18, 16, 18, 16), 6));
+            if (ShowBlockedOnOverview()) { sp.Children.Add(Section("Recently blocked", "by Ransomware protection")); sp.Children.Add(BlockedCard(false)); }   // v1.10
             // the one to-do list
             if (c.Checks != null)
             {

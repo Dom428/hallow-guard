@@ -8,6 +8,17 @@ HOW TO INSTALL
 2. Right-click the zip > Extract All
 3. Double-click INSTALL.bat (no admin needed)
 
+WHAT'S NEW IN 1.10
+- Recently blocked by Ransomware protection: when Windows says "Unauthorized changes
+  blocked", Guard now shows which apps Controlled folder access blocked in the last 14
+  days - publisher, the folder, how often and when - read from Microsoft Defender's own
+  log (no admin needed). Hallow apps and well-known signed apps are marked "Trusted
+  publisher"; unknown or unsigned ones "Check before allowing".
+- "Allow in Windows Security" opens Windows Security at Ransomware protection > Allow an
+  app through Controlled folder access. There: Yes on the Windows prompt > Add an allowed
+  app > Recently blocked apps > the + next to the app. Guard never adds apps itself.
+- Optional quiet note when an app is blocked (Settings, off by default; held while you play).
+
 WHAT'S NEW IN 1.9
 - Light mode readability fixes: in light mode all small text now reads at 4.5:1 or
   better with any Hallow accent. Accent buttons with a violet (or similar) accent get a

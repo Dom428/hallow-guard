@@ -90,6 +90,32 @@ never disables, replaces or weakens Defender.
   the to-do list. `status.json` adds `ransomware`, `moreScore`, `network` and `extensions` - counts only, never names,
   paths or addresses.
 
+## Recently blocked by Ransomware protection (new in 1.10)
+
+![Recently blocked apps on the Overview (made-up data)](docs/blocked.png)
+
+When Controlled folder access is on, Windows pops up *"Unauthorized changes blocked"* for apps it doesn't recognise - even
+Snipping Tool saving a screenshot. Guard now shows what was blocked and how to allow the apps you trust:
+
+- **Read-only, from Defender's own log**: `Microsoft-Windows-Windows Defender/Operational`, event **1123** (blocked) and
+  **1124** (audit mode: would have been blocked), the last 14 days. Windows lets a normal (non-admin) account read this log
+  by default, so Guard needs no admin. If it can't (some PCs lock the log down), the card says so plainly and points to
+  Windows Security's own *Recently blocked apps* list instead - Guard won't ask for admin just to read it.
+- **A card on the Overview** (only when something was blocked) and at the top of the Ransomware page: *"Ransomware
+  protection blocked N apps recently"*, per app: its name, the publisher / signature, the folder it tried to write
+  (`%userprofile%` expanded), how many times and when. **Trusted publisher**: Hallow apps (in their install folder), apps
+  signed by well-known publishers (Microsoft, Valve, OBS Project, NVIDIA, Discord...), Windows' own files, Microsoft Store
+  apps and games in a Steam library. Anything unsigned or signed by someone Guard doesn't know: **Check before allowing**,
+  with a *Scan with Defender* button.
+- **Allow in Windows Security** opens Windows Security straight at *Ransomware protection > Allow an app through Controlled
+  folder access* (`windowsdefender://allowappthroughfolder/`), with the steps in one line: *Yes on the Windows prompt > Add
+  an allowed app > Recently blocked apps > the + next to the app*. Allowing stays your click, behind Windows' own admin
+  prompt: **Guard never changes Defender's settings and never adds an allowed app itself.**
+- **A quiet note** (off by default, Settings): *"SnippingTool.exe was blocked from saving to Pictures. Allow it?"* - held
+  while a game or a full-screen app runs, at most one every 10 minutes, never for audit-only events; clicking it opens the
+  card. `status.json` adds `cfaBlocked` (how many apps - no names), `cfaLog` (`ok` / `denied` / `missing` / `error`) and
+  `cfaNotes`.
+
 ## Hardening checks (new in 1.6)
 
 ![Hardening: Defender settings and exclusions, remote access, old features, accounts and Wi-Fi (made-up data)](docs/hardening.png)
@@ -244,9 +270,16 @@ The 1.6 tests use a fake MSFT_MpPreference, a fake registry (Remote Desktop, ser
 AutoPlay, SMBv1), fake netsh output (and check that no netsh call ever contains `key=clear`), fake accounts, a fake process
 list and fake Windows features. `tests\GuardTests.exe --real-hardening` runs the real read-only hardening checks once and
 prints only timings, check IDs and states.
+The 1.10 tests parse made-up 1123 / 1124 event XML and use made-up apps and signers; the only live check reads whether this
+account can open Defender's log (it passes either way). No test changes a Defender setting.
 
 ## What's new
 
+- **1.10** - Recently blocked by Ransomware protection: Guard reads Defender's own log (read-only, no admin) and shows which
+  apps Controlled folder access blocked in the last 14 days - publisher, signature, the folder, how often and when - marks
+  Hallow apps and well-known signed apps as trusted and the rest "check before allowing", and opens Windows Security right
+  at *Allow an app through Controlled folder access* with the steps. Optional quiet note when an app is blocked (off by
+  default, held during games). Guard still never changes a Defender setting.
 - **1.9** - Light mode readability fixes: Accent buttons with a violet (or similar) accent get a deeper fill with white text,
   status codes, scores and chips use the darker text green and amber, lilac codes and IDs are solid and grey chips get dark
   text - all light text now reads at 4.5:1 or more. Dark mode and Cyber blue are unchanged.

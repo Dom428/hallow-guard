@@ -18,14 +18,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Guard")]
 [assembly: AssemblyProduct("Hallow Guard")]
 [assembly: AssemblyDescription("A friendly safety center on top of Microsoft Defender")]
-[assembly: AssemblyVersion("1.9.0.0")]
-[assembly: AssemblyFileVersion("1.9.0.0")]
+[assembly: AssemblyVersion("1.10.0.0")]
+[assembly: AssemblyFileVersion("1.10.0.0")]
 
 namespace HallowGuard
 {
     public static class Program
     {
-        public const string Version = "1.9";
+        public const string Version = "1.10";
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 
         [STAThread]
@@ -121,6 +121,12 @@ namespace HallowGuard
             c.S.AwayScan = false; c.S.AwayEvery = "weekly"; c.AwayStatus = null;
             c.SnapLookup = new VtResult { Found = true, Malicious = 9, Suspicious = 2, Undetected = 61 }.Summary; w.Show("leftovers"); Snap.Save(w, Path.Combine(dir, "leftovers-lookup.png"), 1040, 720);
             Snap.Save(CrashNotice.Make(Path.Combine(dir, "example.txt")), Path.Combine(dir, "crash.png"), 440, 0);
+            // v1.10: Defender's log can't be read (Ransomware page), with Controlled folder access on (Overview)
+            var keepBlocks = c.Blocks; var keepApps = c.BlockedApps; var keepMode = c.Facts.Cfa.Mode;
+            c.Blocks = new CfaBlockRead { Problem = "denied" }; c.BlockedApps = new List<BlockedApp>(); c.Facts.Cfa.Mode = 1;
+            w.Show("overview"); Snap.Save(w, Path.Combine(dir, "overview-cfa-unreadable.png"), 1040, 720);
+            w.Show("ransomware"); Snap.Save(w, Path.Combine(dir, "ransomware-unreadable.png"), 1040, 720);
+            c.Blocks = keepBlocks; c.BlockedApps = keepApps; c.Facts.Cfa.Mode = keepMode;
             // v1.4: the look picker in Settings, the scan console further on, and a PC in good shape (the pulsing ring)
             w.Show("settings"); Snap.Save(w, Path.Combine(dir, "settings-look.png"), 1040, 720);
             c.SnapScanning(); c.SnapMoreLines(); w.Show("scan"); Snap.Save(w, Path.Combine(dir, "scan-console.png"), 1040, 720);
@@ -161,6 +167,9 @@ namespace HallowGuard
         // v1.6: Windows hardening (read-only) - its checks and the "Hardening" group of the score
         public HardeningFacts Hard; public List<Check> HardChecks; public int? HardValue; public bool HardReading;
         readonly IHardeningSource hardSource;
+        // v1.10: what Controlled folder access blocked lately (Defender's own log, read-only) and the optional quiet note
+        public CfaBlockRead Blocks; public List<BlockedApp> BlockedApps; bool blocksReading; DateTime blocksAt = DateTime.MinValue;
+        readonly ICfaBlockSource blockSrc; public string HeldNote;
         // v1.3: the quick scan while you're away, the weekly report, "what changed since last week"
         public readonly IClock Clock; readonly IIdleSource idleSrc; readonly IPowerSource powerSrc; readonly IBusySource busySrc;
         readonly AwayScanner away; public string AwayStatus;
@@ -180,6 +189,7 @@ namespace HallowGuard
             netSource = fake ? (INetSource)new FakeNet() : new WindowsNet();
             extSource = fake ? (IExtSource)new FakeExts() : new WindowsExts();
             hardSource = fake ? (IHardeningSource)new FakeHardeningSource() : new WindowsHardening();
+            blockSrc = fake ? (ICfaBlockSource)new FakeCfaBlocks() : new WindowsCfaBlocks();
             famEnv = snapMode ? null : GuardSettings.TestDir != null ? FamilyEnv.ForTest(GuardSettings.TestDir) : FamilyEnv.Real();
             Store = GuardSettings.TestDir != null || snapMode ? StartupStore.ForTest(@"Software\HallowGuard\Test-" + (GuardSettings.TestDir == null ? "snap" : Path.GetFileName(GuardSettings.TestDir.TrimEnd('\\')))) : StartupStore.Real();
             // v1.3: real clock / idle time / power / "is a game running", or fakes (snapshots and the test copy - set over the test pipe)
@@ -213,6 +223,9 @@ namespace HallowGuard
             var st = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) }; st.Tick += (s, e) => WriteStatus(); st.Start();
             var rc = new DispatcherTimer { Interval = TimeSpan.FromHours(6) }; rc.Tick += (s, e) => { RefreshChecks(); RefreshThreats(); }; rc.Start();
             var rf = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.1 : 5) }; rf.Tick += (s, e) => RefreshFamily(); rf.Start();
+            // v1.10: Defender's log every 2 minutes while the quiet note is on (a held note goes out once the game ends), else every 30
+            var rb = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.1 : 2) };
+            rb.Tick += (s, e) => { if (S.CfaNotes || HeldNote != null || (DateTime.Now - blocksAt).TotalMinutes >= 30) RefreshBlocks(); }; rb.Start();
             var rm = new DispatcherTimer { Interval = TimeSpan.FromMinutes(GuardSettings.TestDir != null ? 0.05 : 3) };
             rm.Tick += (s, e) => { rm.Interval = TimeSpan.FromHours(1); CheckReminder(); }; rm.Start();
             if (S.WatchDownloads) StartWatching();
@@ -233,6 +246,7 @@ namespace HallowGuard
         {
             Facts = probe.Read(); Checks = Score.Evaluate(Facts, LastGuardScanTime()); ScoreValue = Score.Total(Checks); CheckedAt = DateTime.Now.AddMinutes(-3);
             Net = netSource.Read(); Exts = extSource.Read(); ExtsAt = DateTime.Now.AddMinutes(-2); Hard = hardSource.Read();
+            SetBlocks(FakeCfaBlocks.Sample(DateTime.Now), FakeCfaBlocks.Signer, FakeCfaBlocks.Display, FakeCfaBlocks.Profile, FakeCfaBlocks.LocalAppData, FakeCfaBlocks.WinDir);
             SetFamily(FakeFamily.Sample());
             string e; ThreatList = threatSource.Read(out e);
             LeftoverList = leftoverSource.Hunt(null); HuntedAt = DateTime.Now.AddMinutes(-1);
@@ -311,7 +325,7 @@ namespace HallowGuard
         public void RefreshChecks()
         {
             if (Checking) return; Checking = true; Fire("checks");
-            RefreshNetwork(); RefreshExtensions(); RefreshHardening();
+            RefreshNetwork(); RefreshExtensions(); RefreshHardening(); RefreshBlocks();
             var t = new Thread(() =>
             {
                 SystemFacts f = null; try { f = probe.Read(); } catch (Exception e) { Log("checks failed: " + e.Message); f = new SystemFacts(); }
@@ -341,6 +355,57 @@ namespace HallowGuard
             }) { IsBackground = true, Name = "family", Priority = ThreadPriority.BelowNormal }.Start();
         }
         public void SetFamily(FamilyFacts ff) { Fam = ff; Recount(); }
+        // ---- v1.10: recently blocked by Ransomware protection (read-only)
+        public void SetBlocks(CfaBlockRead r, Func<string, string> signerOf, Func<string, string> displayOf, string profile, string localAppData, string windir)
+        {
+            Blocks = r;
+            BlockedApps = r == null || !r.Readable ? new List<BlockedApp>() : CfaBlocks.Group(r.Events, DateTime.Now, profile, localAppData, windir, signerOf, displayOf);
+        }
+        public void RefreshBlocks()
+        {
+            if (blocksReading || SnapMode) return; blocksReading = true;
+            new Thread(() =>
+            {
+                CfaBlockRead r; List<BlockedApp> apps = null;
+                var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); var lad = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                bool fake = GuardSettings.Fake;
+                try
+                {
+                    r = blockSrc.Read(DateTime.Now.AddDays(-CfaBlocks.Days));
+                    if (r.Readable) apps = fake ? CfaBlocks.Group(r.Events, DateTime.Now, FakeCfaBlocks.Profile, FakeCfaBlocks.LocalAppData, FakeCfaBlocks.WinDir, FakeCfaBlocks.Signer, FakeCfaBlocks.Display)
+                        : CfaBlocks.Group(r.Events, DateTime.Now, profile, lad, win, Signing.Signer, WindowsCfaBlocks.Display);
+                }
+                catch (Exception e) { r = new CfaBlockRead { Problem = "error: " + e.Message }; }
+                ui.BeginInvoke(new Action(() =>
+                {
+                    blocksReading = false; blocksAt = DateTime.Now;
+                    Blocks = r; BlockedApps = apps ?? new List<BlockedApp>();
+                    Log("cfa log: " + (r.Readable ? r.Events.Count + " blocks, " + BlockedApps.Count + " apps" : r.Problem));   // counts only: never app names or folders
+                    MaybeCfaNote(r, fake ? FakeCfaBlocks.Profile : profile);
+                    WriteStatus(); Fire("checks");
+                }));
+            }) { IsBackground = true, Name = "cfa-log", Priority = ThreadPriority.BelowNormal }.Start();
+        }
+        void MaybeCfaNote(CfaBlockRead r, string profile)
+        {
+            if (r == null || !r.Readable) return;
+            var busy = busySrc.Busy();
+            var d = CfaBlocks.Decide(S.CfaNotes, busy, r.Events, IsoTime(S.CfaSeenUpTo), IsoTime(S.LastCfaNote), Clock.Now, profile);
+            HeldNote = d.Held ? d.Why : null;
+            if (d.SeenUpTo != null && d.SeenUpTo.Value.ToString("o") != S.CfaSeenUpTo) { S.CfaSeenUpTo = d.SeenUpTo.Value.ToString("o"); S.Save(); }
+            if (d.Held) Log("cfa note " + d.Why);
+            if (d.Text == null) return;
+            S.LastCfaNote = Clock.Now.ToString("o"); S.Save(); CfaNotes++;
+            Notify("Ransomware protection blocked an app", d.Text + " Click to see it in Hallow Guard.", "overview");
+        }
+        public int CfaNotes;
+        static DateTime? IsoTime(string s) { DateTime t; return DateTime.TryParse(s, null, System.Globalization.DateTimeStyles.RoundtripKind, out t) ? t : (DateTime?)null; }
+        public void SetCfaNotes(bool on)
+        {
+            S.CfaNotes = on; if (on) S.CfaSeenUpTo = DateTime.Now.ToString("o");   // only blocks from now on
+            S.Save(); WriteStatus();
+            if (on) RefreshBlocks();
+        }
         public void SetHardening(HardeningFacts h) { Hard = h; Recount(); }
         // ---- v1.6: Windows hardening (Defender settings and exclusions, remote access, old features, accounts, Wi-Fi - read-only)
         public void RefreshHardening()
@@ -808,6 +873,7 @@ namespace HallowGuard
             var quit = new WF.ToolStripMenuItem("Quit"); quit.Click += (s, e) => Quit(); menu.Items.Add(quit);
             tray.ContextMenuStrip = menu;
             tray.MouseClick += (s, e) => { if (e.Button == WF.MouseButtons.Left) ShowMain(null); };
+            tray.BalloonTipClicked += (s, e) => { var p = balloonPage; balloonPage = null; if (p != null) ShowMain(p); };   // v1.10: the quiet note opens its card
             StyleTrayMenu();
         }
         // v1.8: the tray menu in the app's colours - light or dark (Cyber blue: dark)
@@ -849,10 +915,12 @@ namespace HallowGuard
         bool hubLists;
         void SetHosted(bool on, bool lists) { hubHosts = on; hubLists = on && lists; if (tray != null && !balloonOwn) tray.Visible = !hubLists; }
         public int Notifications;
-        public void Notify(string title, string text)
+        string balloonPage;
+        public void Notify(string title, string text, string page = null)
         {
-            Notifications++; Log("notify: " + title + " - " + text);
+            Notifications++; Log("notify: " + title + (page == "overview" ? " (cfa)" : " - " + text));
             if (tray == null || GuardSettings.TestDir != null) return;
+            balloonPage = page;
             if (!hubHosts) { tray.ShowBalloonTip(5000, title, text, WF.ToolTipIcon.None); return; }
             ThreadPool.QueueUserWorkItem(_ =>
             {
@@ -928,6 +996,8 @@ namespace HallowGuard
                 { "lastCrash", Crash.LastTime() == null ? null : Family.Time(Crash.LastTime().Value) },
                 // v1.2: ransomware protection, programs open to the network, browser extensions (counts only - no names, addresses or paths)
                 { "ransomware", Facts == null || Facts.Cfa == null ? null : Ransom.ModeWord(Facts.Cfa.Mode) }, { "moreScore", MoreValue }, { "hardeningScore", HardValue },
+                // v1.10: Controlled folder access blocks in the last 14 days (counts only) and whether Defender's log could be read
+                { "cfaBlocked", Blocks == null || !Blocks.Readable || BlockedApps == null ? null : (object)BlockedApps.Count }, { "cfaLog", Blocks == null ? null : Blocks.Readable ? "ok" : Blocks.Problem == "denied" || Blocks.Problem == "missing" ? Blocks.Problem : "error" }, { "cfaNotes", S.CfaNotes },
                 { "network", Net == null || Net.Error != null ? null : new Dictionary<string, object> { { "apps", Net.Apps.Count }, { "listeners", Net.Listeners.Count }, { "suspicious", Net.Listeners.Count(l => l.V == Verdict.Suspicious) } } },
                 { "extensions", Exts == null ? null : new Dictionary<string, object> { { "total", Exts.Count }, { "high", Exts.Count(x => x.Risk == "High") }, { "medium", Exts.Count(x => x.Risk == "Medium") }, { "low", Exts.Count(x => x.Risk == "Low") }, { "known", Exts.Count(x => x.Known) } } },
                 // v1.3: the away scan, the newest weekly report (counts only) and what changed since last week (counts only)
@@ -957,6 +1027,7 @@ namespace HallowGuard
             if (Checks != null) t["todoIds"] = Todo().Select(x => x.Id).ToArray();
             if (LeftoverList != null) t["verdicts"] = LeftoverList.GroupBy(x => x.Kind + "/" + x.V).Select(g => g.Key + ":" + g.Count()).ToArray();
             t["away"] = away.Status; t["awayRunning"] = away.Running; t["reportBalloons"] = ReportBalloons; t["newIds"] = NewIds.Count;
+            t["cfaNotes"] = CfaNotes; t["cfaHeld"] = HeldNote; t["cfaApps"] = BlockedApps == null ? null : BlockedApps.Select(a => a.Name + "=" + a.Trust + ":" + a.Count).ToArray();
             if (Current != null) { t["jobAway"] = Current.Away; }
             if (Current != null) { t["job"] = Current.Kind; t["jobResult"] = Current.Result; t["jobThreats"] = Current.Threats; t["jobTarget"] = Current.Target; }
             lock (log) t["log"] = log.ToArray();

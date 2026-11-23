@@ -203,6 +203,7 @@ namespace HallowGuard
             info.Children.Add(Ui.Row(quick, again));
             top.Children.Add(info);
             sp.Children.Add(top);
+            if (ShowBlockedOnOverview()) sp.Children.Add(BlockedCard(false));   // v1.10
             // the one to-do list
             if (c.Checks != null)
             {
@@ -514,6 +515,7 @@ namespace HallowGuard
             a.Children.Add(Ui.Switch("Watch Downloads - scan new downloads once they've finished (off by default)", c.S.WatchDownloads, v => c.SetWatch(v)));
             a.Children.Add(Ui.Switch("Start with Windows (in the tray, off by default) - needed for Watch Downloads, the scan while you're away, the weekly report and the reminder", c.StartsWithWindows(), v => { c.SetStartWithWindows(v); c.WriteStatus(); }));
             a.Children.Add(Ui.Switch("Remind me when nothing was scanned for a week", c.S.WeeklyReminder, v => { c.S.WeeklyReminder = v; c.S.Save(); c.WriteStatus(); }));
+            a.Children.Add(Ui.Switch("A quiet note when Ransomware protection blocks an app (\"Allow it?\" - held while you play, off by default)", c.S.CfaNotes, v => c.SetCfaNotes(v)));
             a.Children.Add(Ui.Switch("Use the Hallow icon (when Hallow Hub runs, notifications come from its icon)", c.S.UseHallowIcon, v => { c.S.UseHallowIcon = v; c.S.Save(); c.CheckHost(); }));
             a.Children.Add(Ui.Switch("Use the Hallow accent (the colour picked in Hallow Toolkit)", c.S.UseHallowAccent, v => { c.S.UseHallowAccent = v; c.S.Save(); c.ApplyAccent(); }));
             sp.Children.Add(Card(a));

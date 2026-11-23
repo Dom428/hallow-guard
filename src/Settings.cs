@@ -58,6 +58,10 @@ namespace HallowGuard
         [DataMember] public string Look = HallowGuard.Look.ConsoleName;
         // v1.8: light or dark - "follow" (Hallow's switch in theme.json, the default), "light" or "dark"
         [DataMember] public string Mode = HallowGuard.Mode.Follow;
+        // v1.10: a quiet note when Controlled folder access blocks an app (off by default); the newest block already noted / skipped
+        [DataMember] public bool CfaNotes;
+        [DataMember] public string CfaSeenUpTo;
+        [DataMember] public string LastCfaNote;
 
         [OnDeserializing] void Defaults(StreamingContext c) { UseHallowIcon = true; UseHallowAccent = true; WeeklyReminder = true; AwayEvery = "weekly"; ReportNotify = true; Look = HallowGuard.Look.ConsoleName; Mode = HallowGuard.Mode.Follow; }
 
